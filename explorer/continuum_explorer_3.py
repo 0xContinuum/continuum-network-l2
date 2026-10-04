@@ -1,4 +1,3 @@
-"""
 ===============================================================================
 CONTINUUM NETWORK ($CTM) - L2 EVM PUBLIC STREAMLIT EXPLORER (READ-ONLY)
 ===============================================================================
@@ -14,6 +13,9 @@ import pandas as pd
 import time
 import json
 import plotly.express as px
+
+# Yeni Deployed Base Sepolia Kontrat Adresi
+DEPLOYED_CONTRACT_ADDRESS = "0x1eF871042d26FBa588D32122c8DE2521B35c3601"
 
 try:
     from continuum_network_3 import ContinuumL2Blockchain, CryptoEngine, CONTRACT_ADDRESS, FOUNDER_WALLET_ADDRESS
@@ -36,12 +38,12 @@ l2: ContinuumL2Blockchain = st.session_state.l2_chain
 
 # YAN PANEL (Ağ Durumu & Güvenli Bilgilendirme)
 st.sidebar.title("⚡ Continuum L2 Network")
-st.sidebar.caption("Ağ Durumu: 🟢 CANLI (Testnet)")
+st.sidebar.caption("Ağ Durumu: 🟢 CANLI (Base Sepolia Testnet)")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("📌 Ağ & Kontrat Bilgileri")
 
-st.sidebar.text_input("Sepolia CTM Kontratı", value=CONTRACT_ADDRESS, disabled=True)
+st.sidebar.text_input("Base Sepolia CTM Kontratı", value=DEPLOYED_CONTRACT_ADDRESS, disabled=True)
 st.sidebar.text_input("Kurucu (Founder) Cüzdan", value=FOUNDER_WALLET_ADDRESS, disabled=True)
 st.sidebar.text_input("Sequencer Düğümü", value="0xContinuum_Sequencer_Main", disabled=True)
 
@@ -66,13 +68,13 @@ total_blocks = len(l2.chain)
 total_supply = l2.TOTAL_SUPPLY
 founder_bal = l2.balances.get(FOUNDER_WALLET_ADDRESS, 0.0)
 paymaster_eth = l2.paymaster.eth_gas_tank
-contract_short = f"{l2.contract_address[:6]}...{l2.contract_address[-4:]}" if len(l2.contract_address) > 10 else l2.contract_address
+contract_short = f"{DEPLOYED_CONTRACT_ADDRESS[:6]}...{DEPLOYED_CONTRACT_ADDRESS[-4:]}"
 
 m1.metric("L2 Toplam Blok", f"#{total_blocks}")
 m2.metric("Toplam $CTM Arzı", f"{total_supply:,.0f}")
 m3.metric("Kurucu Bakiye (%15)", f"{founder_bal:,.0f} CTM")
 m4.metric("Paymaster Gas Deposu", f"{paymaster_eth:.4f} ETH")
-m5.metric("Sepolia Kontratı", contract_short)
+m5.metric("Base Sepolia Kontratı", contract_short)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
