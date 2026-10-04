@@ -1,11 +1,3 @@
-===============================================================================
-CONTINUUM NETWORK ($CTM) - L2 EVM PUBLIC STREAMLIT EXPLORER (READ-ONLY)
-===============================================================================
-Run with:
-    streamlit run continuum_explorer_3.py
-===============================================================================
-"""
-
 import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../sequencer')))
 import streamlit as st
