@@ -7,7 +7,7 @@ import json
 import plotly.express as px
 
 # Yeni Deployed Base Sepolia Kontrat Adresi
-DEPLOYED_CONTRACT_ADDRESS = "0x1eF871042d26FBa588D32122c8DE2521B35c3601"
+DEPLOYED_CONTRACT_ADDRESS = "0x078712Ac537F24B76a1AAB05624c02A9E0a28C13"
 
 try:
     from continuum_network_3 import ContinuumL2Blockchain, CryptoEngine, CONTRACT_ADDRESS, FOUNDER_WALLET_ADDRESS
