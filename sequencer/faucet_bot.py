@@ -4,23 +4,16 @@ from datetime import datetime, timedelta
 from web3 import Web3
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from dotenv import load_dotenv
 
-# .env dosyasındaki gizli anahtarları güvenle yükle
-load_dotenv()
-
-# --- KONFİGÜRASYON (Gizli Anahtarlar Çevresel Değişkenlerden Okunur) ---
+# Render Environment Variables üzerinden okunur
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 PAYMASTER_PRIVATE_KEY = os.getenv("PAYMASTER_PRIVATE_KEY")
 BASE_SEPOLIA_RPC = "https://sepolia.base.org"
 
-# Base Sepolia Deployed Kontrat Adresi
 CONTRACT_ADDRESS = "0x078712Ac537F24B76a1AAB05624c02A9E0a28C13"
 
-# Web3 Bağlantısı
 w3 = Web3(Web3.HTTPProvider(BASE_SEPOLIA_RPC))
 
-# Minimal ERC20 ABI
 ERC20_ABI = [
     {
         "constant": False,
@@ -64,7 +57,6 @@ async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_address = Web3.to_checksum_address(user_address)
     now = datetime.now()
 
-    # Rate Limiting (24 Saatlik Kontrol)
     if user_address in faucet_history:
         last_claim = faucet_history[user_address]
         if now - last_claim < timedelta(hours=24):
@@ -80,7 +72,7 @@ async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         faucet_account = w3.eth.account.from_key(PAYMASTER_PRIVATE_KEY)
-        amount = 100 * (10 ** 18)  # 100 CTM
+        amount = 100 * (10 ** 18)
 
         tx = contract.functions.transfer(user_address, amount).build_transaction({
             'from': faucet_account.address,
@@ -88,7 +80,7 @@ async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'gas': 100000,
             'maxFeePerGas': w3.to_wei('2', 'gwei'),
             'maxPriorityFeePerGas': w3.to_wei('1', 'gwei'),
-            'chainId': 84532  # Base Sepolia Chain ID
+            'chainId': 84532
         })
 
         signed_tx = w3.eth.account.sign_transaction(tx, PAYMASTER_PRIVATE_KEY)
@@ -108,7 +100,7 @@ async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     if not TELEGRAM_BOT_TOKEN:
-        print("❌ HATA: TELEGRAM_BOT_TOKEN .env dosyasında bulunamadı!")
+        print("❌ HATA: TELEGRAM_BOT_TOKEN Render paneline eklenmemiş!")
         return
     
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
