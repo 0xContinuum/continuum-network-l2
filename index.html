@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Continuum Network ($CTM) - Web3 DApp</title>
+    <!-- Telegram WebApp SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Ethers.js v5 CDN -->
@@ -28,40 +30,40 @@
             <div class="flex items-center space-x-3">
                 <span class="text-2xl">⚡</span>
                 <span class="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                    Continuum Network
+                    Continuum
                 </span>
                 <span class="text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2.5 py-1 rounded-full font-mono">
                     L2 Testnet
                 </span>
             </div>
-            <button id="connectBtn" onclick="connectWallet()" class="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold px-5 py-2.5 rounded-xl transition duration-200 shadow-lg shadow-blue-500/20">
+            <button id="connectBtn" onclick="connectWallet()" class="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold px-4 py-2 text-sm rounded-xl transition duration-200 shadow-lg shadow-blue-500/20">
                 🦊 Cüzdan Bağla
             </button>
         </div>
     </nav>
 
     <!-- MAIN CONTENT -->
-    <main class="max-w-4xl mx-auto px-6 py-12 w-full space-y-8">
+    <main class="max-w-4xl mx-auto px-6 py-8 w-full space-y-6">
         
         <!-- DASHBOARD HEADER -->
-        <div class="text-center space-y-3">
-            <h1 class="text-4xl font-extrabold tracking-tight sm:text-5xl">
-                Gazsız ve Işık Hızında <span class="text-blue-400">$CTM</span> İşlemleri
+        <div class="text-center space-y-2">
+            <h1 class="text-3xl font-extrabold tracking-tight sm:text-4xl">
+                Gazsız ve Işık Hızında <span class="text-blue-400">$CTM</span>
             </h1>
-            <p class="text-slate-400 max-w-xl mx-auto">
-                Continuum L2 ekosisteminde bakiyeni görüntüle, tek tıkla $CTM transfer et veya testnet tokenlerini yönet.
+            <p class="text-slate-400 text-sm max-w-xl mx-auto">
+                Continuum L2 ekosisteminde bakiyeni görüntüle ve tek tıkla transfer et.
             </p>
         </div>
 
         <!-- WALLET STATUS CARD -->
-        <div class="bg-slate-900/80 rounded-2xl p-6 glow-box space-y-4">
-            <div class="flex justify-between items-center border-b border-slate-800 pb-4">
-                <span class="text-sm font-medium text-slate-400">Bağlı Cüzdan</span>
-                <span id="walletAddress" class="text-sm font-mono text-cyan-400 bg-slate-800 px-3 py-1 rounded-lg">
+        <div class="bg-slate-900/80 rounded-2xl p-5 glow-box space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <span class="text-xs font-medium text-slate-400">Bağlı Cüzdan</span>
+                <span id="walletAddress" class="text-xs font-mono text-cyan-400 bg-slate-800 px-3 py-1 rounded-lg">
                     Bağlanmadı
                 </span>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
                 <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
                     <span class="text-xs text-slate-400 uppercase font-semibold">Bakiye ($CTM)</span>
                     <div id="ctmBalance" class="text-2xl font-bold text-white mt-1">0.00 CTM</div>
@@ -74,8 +76,8 @@
         </div>
 
         <!-- TRANSACTION CARD -->
-        <div class="bg-slate-900/80 rounded-2xl p-6 glow-box space-y-6">
-            <h2 class="text-xl font-bold flex items-center gap-2">
+        <div class="bg-slate-900/80 rounded-2xl p-5 glow-box space-y-5">
+            <h2 class="text-lg font-bold flex items-center gap-2">
                 <span>💸</span> $CTM Transfer Et
             </h2>
             <div class="space-y-4">
@@ -97,7 +99,7 @@
     </main>
 
     <!-- FOOTER -->
-    <footer class="border-t border-slate-800/80 py-6 text-center text-xs text-slate-500 space-y-2">
+    <footer class="border-t border-slate-800/80 py-4 text-center text-xs text-slate-500 space-y-1">
         <p>Continuum Network ($CTM) — Built on Base Sepolia L2</p>
         <p>
             <a href="https://sepolia.basescan.org/token/0x078712Ac537F24B76a1AAB05624c02A9E0a28C13" target="_blank" class="text-blue-400 hover:underline">
@@ -106,8 +108,15 @@
         </p>
     </footer>
 
-    <!-- WEB3 LOGIC -->
+    <!-- WEB3 LOGIC & TELEGRAM SDK -->
     <script>
+        // Telegram Mini App Entegrasyonu
+        if (window.Telegram && window.Telegram.WebApp) {
+            const tg = window.Telegram.WebApp;
+            tg.ready();
+            tg.expand(); // Telegram içi pencereyi tam ekran yap
+        }
+
         const CTM_CONTRACT_ADDRESS = "0x078712Ac537F24B76a1AAB05624c02A9E0a28C13";
         const BASE_SEPOLIA_CHAIN_ID = "0x14a34"; // 84532 Hex
 
@@ -121,7 +130,7 @@
 
         async function connectWallet() {
             if (!window.ethereum) {
-                alert("Lütfen MetaMask eklentisini yükleyin!");
+                alert("Lütfen MetaMask eklentisini veya Web3 cüzdan tarayıcısını kullanın!");
                 return;
             }
 
@@ -153,7 +162,7 @@
                 userAddress = await signer.getAddress();
 
                 document.getElementById('walletAddress').innerText = `${userAddress.substring(0, 6)}...${userAddress.substring(userAddress.length - 4)}`;
-                document.getElementById('connectBtn').innerText = "✅ Cüzdan Bağlandı";
+                document.getElementById('connectBtn').innerText = "✅ Bağlandı";
                 document.getElementById('networkStatus').innerText = "🟢 Base Sepolia";
                 document.getElementById('networkStatus').className = "text-lg font-semibold text-emerald-400 mt-1";
 
@@ -186,7 +195,7 @@
             try {
                 statusBox.classList.remove('hidden', 'bg-red-900/30', 'text-red-400');
                 statusBox.classList.add('bg-blue-900/30', 'text-blue-300');
-                statusBox.innerText = "⏳ İşlem MetaMask onayına gönderildi...";
+                statusBox.innerText = "⏳ İşlem onay bekleniyor...";
 
                 const parsedAmount = ethers.utils.parseUnits(amount.toString(), 18);
                 const tx = await ctmContract.transfer(recipient, parsedAmount);
