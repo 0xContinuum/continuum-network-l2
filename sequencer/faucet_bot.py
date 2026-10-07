@@ -4,16 +4,18 @@ from datetime import datetime, timedelta
 from web3 import Web3
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from dotenv import load_dotenv
 
-# --- KONFİGÜRASYON ---
-TELEGRAM_BOT_TOKEN = os.getenv("8947007755:AAFolOQ7E24tRzWHHi0Mtkxeu1q9FNUmOzE")
+# .env dosyasındaki gizli anahtarları güvenle yükle
+load_dotenv()
+
+# --- KONFİGÜRASYON (Gizli Anahtarlar Çevresel Değişkenlerden Okunur) ---
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+PAYMASTER_PRIVATE_KEY = os.getenv("PAYMASTER_PRIVATE_KEY")
 BASE_SEPOLIA_RPC = "https://sepolia.base.org"
 
-# Yeni Base Sepolia Deployed Kontrat Adresi
+# Base Sepolia Deployed Kontrat Adresi
 CONTRACT_ADDRESS = "0x078712Ac537F24B76a1AAB05624c02A9E0a28C13"
-
-# Paymaster / Faucet Cüzdanı Özel Anahtarı
-PAYMASTER_PRIVATE_KEY = os.getenv("PAYMASTER_PRIVATE_KEY", "")
 
 # Web3 Bağlantısı
 w3 = Web3(Web3.HTTPProvider(BASE_SEPOLIA_RPC))
@@ -105,10 +107,14 @@ async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Transaction failed: {str(e)}")
 
 def main():
+    if not TELEGRAM_BOT_TOKEN:
+        print("❌ HATA: TELEGRAM_BOT_TOKEN .env dosyasında bulunamadı!")
+        return
+    
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("faucet", faucet))
-    print("🤖 Faucet Bot is running...")
+    print("🤖 Faucet Bot başarıyla çalıştırıldı ve dinliyor...")
     app.run_polling()
 
 if __name__ == "__main__":
