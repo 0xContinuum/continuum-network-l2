@@ -6,7 +6,7 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # --- KONFİGÜRASYON ---
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "SENIN_BOT_TOKENIN")
+TELEGRAM_BOT_TOKEN = os.getenv("8947007755:AAFolOQ7E24tRzWHHi0Mtkxeu1q9FNUmOzE")
 BASE_SEPOLIA_RPC = "https://sepolia.base.org"
 
 # Yeni Base Sepolia Deployed Kontrat Adresi
