@@ -3,10 +3,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../sequ
 import streamlit as st
 import pandas as pd
 import time
-import json
-import plotly.express as px
 
-# Yeni Deployed Base Sepolia Kontrat Adresi
+# Deployed Base Sepolia Kontrat Adresi
 DEPLOYED_CONTRACT_ADDRESS = "0x078712Ac537F24B76a1AAB05624c02A9E0a28C13"
 
 try:
@@ -14,7 +12,6 @@ try:
 except ImportError as e:
     st.error(f"⚠️ 'continuum_network_3.py' yüklenirken hata oluştu: {e}")
     st.stop()
-
 
 st.set_page_config(
     page_title="Continuum Network ($CTM) L2 Explorer",
@@ -28,9 +25,19 @@ if "l2_chain" not in st.session_state:
 l2: ContinuumL2Blockchain = st.session_state.l2_chain
 
 
-# YAN PANEL (Ağ Durumu & Güvenli Bilgilendirme)
+# YAN PANEL (Ağ Durumu & Ekosistem Linkleri)
 st.sidebar.title("⚡ Continuum L2 Network")
 st.sidebar.caption("Ağ Durumu: 🟢 CANLI (Base Sepolia Testnet)")
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("🌐 Ekosistem & Linkler")
+
+# Sosyal ve Uygulama Linkleri
+st.sidebar.markdown("🌐 **[Web DApp İstemcisi](https://0xcontinuum.github.io/continuum-network-l2/)**")
+st.sidebar.markdown("🤖 **[Testnet Faucet Botu (@ContinuumCTM_bot)](https://t.me/ContinuumCTM_bot)**")
+st.sidebar.markdown("📢 **[Telegram Duyuru Kanalı](https://t.me/ContinuumAnnouncements)**")
+st.sidebar.markdown("𝕏 **[X / Twitter (@ContinuumL2)](https://x.com/ContinuumL2)**")
+st.sidebar.markdown("💻 **[GitHub Deposu](https://github.com/0xContinuum/continuum-network-l2)**")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("📌 Ağ & Kontrat Bilgileri")
@@ -41,8 +48,8 @@ st.sidebar.text_input("Sequencer Düğümü", value="0xContinuum_Sequencer_Main"
 
 st.sidebar.markdown("---")
 st.sidebar.info(
-    "ℹ️ **Salt Okunur Mod:** Bu explorer ağ durumunu ve L2 batch işlemlerini izlemek içindir. "
-    "Testnet $CTM talepleri için Telegram Faucet Botunu kullanabilirsiniz."
+    "ℹ️ **Explorer Modu:** Bu panel Continuum L2 ağ durumunu, bakiye durumunu ve L2 batch işlemlerini izler. "
+    "Web3 cüzdan işlemleri için Web DApp istemcisini kullanabilirsiniz."
 )
 
 if st.sidebar.button("🔄 Ağ Durumunu Yenile", type="primary", use_container_width=True):
@@ -54,6 +61,17 @@ if st.sidebar.button("🔄 Ağ Durumunu Yenile", type="primary", use_container_w
 # MAIN PANEL
 st.title("⚡ Continuum Network ($CTM) - L2 EVM Explorer")
 
+# HIZLI ERİŞİM BUTONLARI (TOP BANNER)
+col_a, col_b, col_c, col_d, col_e = st.columns(5)
+col_a.link_button("🌐 Web DApp", "https://0xcontinuum.github.io/continuum-network-l2/", use_container_width=True)
+col_b.link_button("🤖 Faucet Bot", "https://t.me/ContinuumCTM_bot", use_container_width=True)
+col_c.link_button("📢 Telegram", "https://t.me/ContinuumAnnouncements", use_container_width=True)
+col_d.link_button("𝕏 Twitter", "https://x.com/ContinuumL2", use_container_width=True)
+col_e.link_button("💻 GitHub", "https://github.com/0xContinuum/continuum-network-l2", use_container_width=True)
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# METRİKLER
 m1, m2, m3, m4, m5 = st.columns(5)
 
 total_blocks = len(l2.chain)
@@ -70,6 +88,7 @@ m5.metric("Base Sepolia Kontratı", contract_short)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
+# SEKMELER
 tab1, tab2, tab3 = st.tabs(["🧊 L2 Blokları & Batchler", "💰 Cüzdan Bakiyeleri (State)", "⛽ Paymaster & Gas Sponsorluğu"])
 
 with tab1:
