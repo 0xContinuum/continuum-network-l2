@@ -1,11 +1,29 @@
 import os
 import asyncio
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime, timedelta
 from web3 import Web3
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# Render Environment Variables üzerinden okunur
+# --- 1. RENDER PORT HEALTH CHECK (Render'ın Botu Kapatmasını Önler) ---
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Continuum Faucet Bot is Alive!")
+
+def start_health_check_server():
+    port = int(os.getenv("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+    print(f"🌐 Health Check server listening on port {port}")
+    server.serve_forever()
+
+# Background Thread Olarak Portu Başlat
+threading.Thread(target=start_health_check_server, daemon=True).start()
+
+# --- 2. BOT KONFİGÜRASYONU ---
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 PAYMASTER_PRIVATE_KEY = os.getenv("PAYMASTER_PRIVATE_KEY")
 BASE_SEPOLIA_RPC = "https://sepolia.base.org"
