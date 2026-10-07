@@ -37,7 +37,7 @@
                 </span>
             </div>
             <button id="connectBtn" onclick="connectWallet()" class="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold px-3 py-1.5 text-xs rounded-xl transition duration-200 shadow-lg shadow-blue-500/20">
-                ⚡ Cüzdan Oluştur / Bağla
+                ⚡ Cüzdan Aktif
             </button>
         </div>
     </nav>
@@ -61,9 +61,9 @@
                 <span class="text-xs font-medium text-slate-400">Bağlı Cüzdan</span>
                 <div class="flex items-center gap-2">
                     <span id="walletAddress" class="text-xs font-mono text-cyan-400 bg-slate-800 px-2.5 py-1 rounded-lg">
-                        Bağlanmadı
+                        Yükleniyor...
                     </span>
-                    <button onclick="copyAddress()" class="text-xs bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded text-slate-300">📋</button>
+                    <button onclick="copyAddress()" class="text-xs bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded text-slate-300" title="Kopyala">📋</button>
                 </div>
             </div>
             <div class="grid grid-cols-2 gap-3 pt-1">
@@ -73,7 +73,7 @@
                 </div>
                 <div class="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">
                     <span class="text-[10px] text-slate-400 uppercase font-semibold">Ağ Durumu</span>
-                    <div id="networkStatus" class="text-sm font-semibold text-slate-400 mt-1">Bekleniyor...</div>
+                    <div id="networkStatus" class="text-sm font-semibold text-slate-400 mt-1">Bağlanıyor...</div>
                 </div>
             </div>
         </div>
@@ -131,7 +131,6 @@
             tg.expand();
         }
 
-        // Sayfa Yüklendiğinde Otomatik Cüzdan Bağlama/Oluşturma
         window.addEventListener('DOMContentLoaded', async () => {
             await autoInitWallet();
         });
@@ -139,8 +138,15 @@
         async function autoInitWallet() {
             provider = new ethers.providers.JsonRpcProvider(RPC_URL);
 
-            if (window.ethereum) {
-                // MetaMask Mevcutsa
+            let privateKey;
+            const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+
+            if (tgUser && tgUser.id) {
+                // Telegram ID'sine özel deterministik (sabit) Private Key üretme
+                const seedString = `continuum_network_l2_salt_2026_${tgUser.id}`;
+                privateKey = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(seedString));
+            } else if (window.ethereum) {
+                // MetaMask Mevcutsa ve Telegram dışında açıldıysa
                 try {
                     const web3Provider = new ethers.providers.Web3Provider(window.ethereum);
                     const accounts = await web3Provider.listAccounts();
@@ -153,19 +159,20 @@
                         return;
                     }
                 } catch (e) {
-                    console.log("MetaMask otomatik bağlanamadı.");
+                    console.log("MetaMask bağlanamadı.");
                 }
             }
 
-            // Telegram içi / MetaMask yoksa -> Yerel Cüzdan (Local Wallet) Kullan
-            let storedKey = localStorage.getItem("continuum_private_key");
-            if (!storedKey) {
-                const randomWallet = ethers.Wallet.createRandom();
-                storedKey = randomWallet.privateKey;
-                localStorage.setItem("continuum_private_key", storedKey);
+            // Fallback: Telegram ID bulunamadıysa yerel anahtar
+            if (!privateKey) {
+                privateKey = localStorage.getItem("continuum_private_key");
+                if (!privateKey) {
+                    privateKey = ethers.Wallet.createRandom().privateKey;
+                    localStorage.setItem("continuum_private_key", privateKey);
+                }
             }
 
-            wallet = new ethers.Wallet(storedKey, provider);
+            wallet = new ethers.Wallet(privateKey, provider);
             userAddress = wallet.address;
             ctmContract = new ethers.Contract(CTM_CONTRACT_ADDRESS, ERC20_ABI, wallet);
 
@@ -187,19 +194,18 @@
                     alert("MetaMask Hatası: " + err.message);
                 }
             } else {
-                alert("Telegram cüzdanınız zaten aktif! Adresinizi kopyalayıp Faucet botundan $CTM talep edebilirsiniz.");
+                alert("Telegram cüzdanınız cihazlar arası senkronize edildi!\n\nAdresiniz: " + userAddress);
             }
         }
 
         function updateUI(address, status) {
             document.getElementById('walletAddress').innerText = `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
-            document.getElementById('connectBtn').innerText = "✅ Cüzdan Aktif";
             document.getElementById('networkStatus').innerText = status;
             document.getElementById('networkStatus').className = "text-xs font-semibold text-emerald-400 mt-1";
         }
 
         async function updateBalance() {
-            if (!ctmContract || !userAddress) return;
+            if (!userAddress) return;
             try {
                 const readContract = new ethers.Contract(CTM_CONTRACT_ADDRESS, ERC20_ABI, provider);
                 const balance = await readContract.balanceOf(userAddress);
@@ -234,14 +240,7 @@
 
                 const parsedAmount = ethers.utils.parseUnits(amount.toString(), 18);
                 
-                let tx;
-                if (wallet) {
-                    // Yerel Telegram Cüzdanı ile Gönderim
-                    tx = await ctmContract.transfer(recipient, parsedAmount);
-                } else {
-                    // MetaMask ile Gönderim
-                    tx = await ctmContract.transfer(recipient, parsedAmount);
-                }
+                const tx = await ctmContract.transfer(recipient, parsedAmount);
 
                 statusBox.innerText = `🚀 İşlem yayınlandı! Tx Hash:\n${tx.hash}\nOnay bekleniyor...`;
                 await tx.wait();
