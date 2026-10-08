@@ -1,0 +1,24 @@
+{
+  "name": "Continuum Genesis Pioneer #1 (1 of 1)",
+  "description": "Continuum Network L2 Testnet Model D liderlik şampiyonuna verilen tek ve benzersiz 1/1 Genesis NFT'si. Transfer edilebilir ve ikincil piyasalarda satılabilir.",
+  "image": "https://raw.githubusercontent.com/0xContinuum/continuum-network-l2/main/assets/genesis_winner.png",
+  "external_url": "https://0xcontinuum.github.io/continuum-network-l2/",
+  "attributes": [
+    {
+      "trait_type": "Rarity",
+      "value": "1 of 1 Unique"
+    },
+    {
+      "trait_type": "Transferable",
+      "value": "Yes (ERC-721)"
+    },
+    {
+      "trait_type": "Status",
+      "value": "Genesis Founder"
+    },
+    {
+      "trait_type": "Mainnet VIP Pass",
+      "value": "Max Tier Airdrop & Zero-Fee Pool"
+    }
+  ]
+}
