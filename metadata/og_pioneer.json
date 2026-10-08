@@ -1,0 +1,24 @@
+{
+  "name": "Continuum OG Pioneer Badge",
+  "description": "Continuum Network L2 Testnet erken dönem katılım ve görev tamamlama rozeti. Mainnet hak edişleri için geçerlidir.",
+  "image": "https://raw.githubusercontent.com/0xContinuum/continuum-network-l2/main/assets/og_pioneer.png",
+  "external_url": "https://0xcontinuum.github.io/continuum-network-l2/",
+  "attributes": [
+    {
+      "trait_type": "Badge Type",
+      "value": "Soulbound (Non-Transferable)"
+    },
+    {
+      "trait_type": "Network",
+      "value": "Base Sepolia L2"
+    },
+    {
+      "trait_type": "Role",
+      "value": "OG Testnet Tester"
+    },
+    {
+      "trait_type": "Airdrop Multiplier",
+      "value": "1.5x"
+    }
+  ]
+}
