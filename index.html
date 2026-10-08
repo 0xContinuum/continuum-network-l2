@@ -63,7 +63,8 @@
                     <span id="walletAddress" class="text-xs font-mono text-cyan-400 bg-slate-800 px-2.5 py-1 rounded-lg">
                         Yükleniyor...
                     </span>
-                    <button onclick="copyAddress()" class="text-xs bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded text-slate-300" title="Kopyala">📋</button>
+                    <button onclick="copyAddress()" class="text-xs bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded text-slate-300" title="Adresi Kopyala">📋</button>
+                    <button onclick="showPrivateKey()" class="text-xs bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded font-semibold transition" title="Private Key Göster">🔑 Key</button>
                 </div>
             </div>
             <div class="grid grid-cols-2 gap-3 pt-1">
@@ -124,7 +125,6 @@
 
         let provider, wallet, ctmContract, userAddress;
 
-        // Telegram SDK Başlatma
         if (window.Telegram && window.Telegram.WebApp) {
             const tg = window.Telegram.WebApp;
             tg.ready();
@@ -142,11 +142,9 @@
             const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
 
             if (tgUser && tgUser.id) {
-                // Telegram ID'sine özel deterministik (sabit) Private Key üretme
                 const seedString = `continuum_network_l2_salt_2026_${tgUser.id}`;
                 privateKey = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(seedString));
             } else if (window.ethereum) {
-                // MetaMask Mevcutsa ve Telegram dışında açıldıysa
                 try {
                     const web3Provider = new ethers.providers.Web3Provider(window.ethereum);
                     const accounts = await web3Provider.listAccounts();
@@ -163,7 +161,6 @@
                 }
             }
 
-            // Fallback: Telegram ID bulunamadıysa yerel anahtar
             if (!privateKey) {
                 privateKey = localStorage.getItem("continuum_private_key");
                 if (!privateKey) {
@@ -223,6 +220,23 @@
             }
         }
 
+        function showPrivateKey() {
+            if (!wallet) {
+                alert("MetaMask ile bağlısınız. Private Key'inize MetaMask eklentiniz üzerinden erişebilirsiniz.");
+                return;
+            }
+
+            const confirmExport = confirm(
+                "⚠️ UYARI: Private Key'iniz cüzdanınızın tam kontrolünü verir. Bu anahtarı asla başkasıyla paylaşmayın!\n\n" +
+                "Private Key'inizi kopyalayıp MetaMask veya Trust Wallet'a aktarmak istiyor musunuz?"
+            );
+
+            if (confirmExport) {
+                navigator.clipboard.writeText(wallet.privateKey);
+                alert("✅ Private Key panoya kopyalandı!\n\nMetaMask -> Hesap Ekle -> 'İçe Aktar (Import Account)' seçeneğine yapıştırabilirsiniz.");
+            }
+        }
+
         async function sendTokens() {
             const recipient = document.getElementById('recipientInput').value;
             const amount = document.getElementById('amountInput').value;
@@ -239,7 +253,6 @@
                 statusBox.innerText = "⏳ İşlem işleniyor...";
 
                 const parsedAmount = ethers.utils.parseUnits(amount.toString(), 18);
-                
                 const tx = await ctmContract.transfer(recipient, parsedAmount);
 
                 statusBox.innerText = `🚀 İşlem yayınlandı! Tx Hash:\n${tx.hash}\nOnay bekleniyor...`;
