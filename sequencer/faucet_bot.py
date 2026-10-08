@@ -7,7 +7,7 @@ from web3 import Web3
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# --- 1. RENDER PORT HEALTH CHECK (Render'ın Botu Kapatmasını Önler) ---
+# --- 1. RENDER PORT HEALTH CHECK ---
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -20,7 +20,6 @@ def start_health_check_server():
     print(f"🌐 Health Check server listening on port {port}")
     server.serve_forever()
 
-# Background Thread Olarak Portu Başlat
 threading.Thread(target=start_health_check_server, daemon=True).start()
 
 # --- 2. BOT KONFİGÜRASYONU ---
@@ -50,7 +49,10 @@ ERC20_ABI = [
 ]
 
 contract = w3.eth.contract(address=Web3.to_checksum_address(CONTRACT_ADDRESS), abi=ERC20_ABI)
-faucet_history = {}
+
+# Cooldown geçmişi: Hem Telegram User ID hem de Adres bazlı takip
+user_cooldowns = {}
+address_cooldowns = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_text = (
@@ -58,63 +60,89 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Welcome to Continuum L2 Testnet! You can request testnet $CTM tokens to participate in "
         "gasless transactions and explore the ecosystem.\n\n"
         "📌 *Command:* `/faucet <YOUR_WALLET_ADDRESS>`\n"
-        "⏱ *Limit:* 100 CTM per address every 24 hours."
+        "⏱ *Limit:* 100 CTM per user/address every 24 hours."
     )
     await update.message.reply_text(welcome_text, parse_mode="Markdown")
+
+async def execute_transfer(user_address: str, amount: int):
+    """Senkron Web3 işlemlerini asenkron iş parçacığında çalıştırır."""
+    faucet_account = w3.eth.account.from_key(PAYMASTER_PRIVATE_KEY)
+    nonce = w3.eth.get_transaction_count(faucet_account.address, 'pending')
+
+    tx = contract.functions.transfer(user_address, amount).build_transaction({
+        'from': faucet_account.address,
+        'nonce': nonce,
+        'gas': 100000,
+        'maxFeePerGas': w3.to_wei('2', 'gwei'),
+        'maxPriorityFeePerGas': w3.to_wei('1', 'gwei'),
+        'chainId': 84532
+    })
+
+    signed_tx = w3.eth.account.sign_transaction(tx, PAYMASTER_PRIVATE_KEY)
+    tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+    return tx_hash.hex()
 
 async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         await update.message.reply_text("❌ Please provide a wallet address.\nExample: `/faucet 0x123...`", parse_mode="Markdown")
         return
 
-    user_address = context.args[0]
-    if not w3.is_address(user_address):
+    raw_address = context.args[0].strip()
+    
+    # Asenkron Adres Doğrulama
+    is_valid = await asyncio.to_thread(w3.is_address, raw_address)
+    if not is_valid:
         await update.message.reply_text("❌ Invalid Ethereum address! Check and try again.")
         return
 
-    user_address = Web3.to_checksum_address(user_address)
+    user_address = Web3.to_checksum_address(raw_address)
+    tg_user_id = update.effective_user.id
     now = datetime.now()
 
-    if user_address in faucet_history:
-        last_claim = faucet_history[user_address]
+    # 1. Telegram Kullanıcısı Cooldown Kontrolü
+    if tg_user_id in user_cooldowns:
+        last_claim = user_cooldowns[tg_user_id]
         if now - last_claim < timedelta(hours=24):
             remaining = timedelta(hours=24) - (now - last_claim)
             hours, remainder = divmod(remaining.seconds, 3600)
             minutes, _ = divmod(remainder, 60)
-            await update.message.reply_text(f"⏳ Cooldown active! Try again in {hours}h {minutes}m.")
+            await update.message.reply_text(f"⏳ Cooldown active for your account! Try again in {hours}h {minutes}m.")
+            return
+
+    # 2. Cüzdan Adresi Cooldown Kontrolü
+    if user_address in address_cooldowns:
+        last_claim = address_cooldowns[user_address]
+        if now - last_claim < timedelta(hours=24):
+            remaining = timedelta(hours=24) - (now - last_claim)
+            hours, remainder = divmod(remaining.seconds, 3600)
+            minutes, _ = divmod(remainder, 60)
+            await update.message.reply_text(f"⏳ Cooldown active for this wallet address! Try again in {hours}h {minutes}m.")
             return
 
     if not PAYMASTER_PRIVATE_KEY:
         await update.message.reply_text("⚠️ Faucet wallet key not set on server. Testnet distribution paused.")
         return
 
+    msg = await update.message.reply_text("⏳ Processing transaction on Base Sepolia...")
+
     try:
-        faucet_account = w3.eth.account.from_key(PAYMASTER_PRIVATE_KEY)
         amount = 100 * (10 ** 18)
+        # Web3 transferini bloklama yapmadan çalıştırır
+        tx_hash = await asyncio.to_thread(execute_transfer, user_address, amount)
 
-        tx = contract.functions.transfer(user_address, amount).build_transaction({
-            'from': faucet_account.address,
-            'nonce': w3.eth.get_transaction_count(faucet_account.address),
-            'gas': 100000,
-            'maxFeePerGas': w3.to_wei('2', 'gwei'),
-            'maxPriorityFeePerGas': w3.to_wei('1', 'gwei'),
-            'chainId': 84532
-        })
+        user_cooldowns[tg_user_id] = now
+        address_cooldowns[user_address] = now
 
-        signed_tx = w3.eth.account.sign_transaction(tx, PAYMASTER_PRIVATE_KEY)
-        tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-
-        faucet_history[user_address] = now
-
-        await update.message.reply_text(
+        await msg.edit_text(
             f"✅ *100 $CTM Successfully Sent!*\n\n"
             f"👤 *Recipient:* `{user_address}`\n"
-            f"🔗 *Tx Hash:* [View on Basescan](https://sepolia.basescan.org/tx/{tx_hash.hex()})",
+            f"🔗 *Tx Hash:* [View on Basescan](https://sepolia.basescan.org/tx/0x{tx_hash})",
             parse_mode="Markdown",
             disable_web_page_preview=True
         )
     except Exception as e:
-        await update.message.reply_text(f"❌ Transaction failed: {str(e)}")
+        print(f"Faucet error: {e}")
+        await msg.edit_text(f"❌ Transaction failed: {str(e)}")
 
 def main():
     if not TELEGRAM_BOT_TOKEN:
