@@ -1,4 +1,5 @@
 import os
+import json
 import asyncio
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -7,30 +8,13 @@ from web3 import Web3
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# --- 1. RENDER PORT HEALTH CHECK ---
-class HealthCheckHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Continuum Faucet Bot is Alive!")
-
-def start_health_check_server():
-    port = int(os.getenv("PORT", 10000))
-    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
-    print(f"🌐 Health Check server listening on port {port}")
-    server.serve_forever()
-
-threading.Thread(target=start_health_check_server, daemon=True).start()
-
-# --- 2. BOT KONFİGÜRASYONU ---
+# --- 1. CONFIGURATION & ENVIRONMENT ---
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 PAYMASTER_PRIVATE_KEY = os.getenv("PAYMASTER_PRIVATE_KEY")
 BASE_SEPOLIA_RPC = "https://sepolia.base.org"
 
-# Kanal Katılım Ayarları
 REQUIRED_CHANNEL = "@ContinuumAnnouncements"
 CHANNEL_LINK = "https://t.me/ContinuumAnnouncements"
-
 CONTRACT_ADDRESS = "0x078712Ac537F24B76a1AAB05624c02A9E0a28C13"
 
 w3 = Web3(Web3.HTTPProvider(BASE_SEPOLIA_RPC))
@@ -54,10 +38,104 @@ ERC20_ABI = [
 
 contract = w3.eth.contract(address=Web3.to_checksum_address(CONTRACT_ADDRESS), abi=ERC20_ABI)
 
-# Cooldown geçmişi: Hem Telegram User ID hem de Adres bazlı takip
 user_cooldowns = {}
 address_cooldowns = {}
 
+# --- 2. RENDER HEALTH CHECK & PAYMASTER RELAYER API SERVER ---
+class PaymasterRelayerHandler(BaseHTTPRequestHandler):
+    def _set_headers(self, status=200):
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+
+    def do_OPTIONS(self):
+        self._set_headers(200)
+
+    def do_GET(self):
+        self._set_headers(200)
+        self.wfile.write(json.dumps({"status": "ok", "message": "Continuum Paymaster Relayer Active!"}).encode())
+
+    def do_POST(self):
+        if self.path == "/api/paymaster-transfer":
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            
+            try:
+                data = json.loads(post_data.decode('utf-8'))
+                sender = Web3.to_checksum_address(data.get("sender"))
+                recipient = Web3.to_checksum_address(data.get("recipient"))
+                amount_ctm = float(data.get("amount"))
+
+                # 1. Gönderen Kullanıcı Bakiye Kontrolü (>= 100 CTM Şartı)
+                sender_balance = contract.functions.balanceOf(sender).call()
+                sender_ctm = sender_balance / (10**18)
+
+                if sender_ctm < 100:
+                    self._set_headers(400)
+                    self.wfile.write(json.dumps({
+                        "success": False, 
+                        "error": "Paymaster kullanımı için cüzdanınızda en az 100 $CTM bulunmalıdır!"
+                    }).encode())
+                    return
+
+                if not PAYMASTER_PRIVATE_KEY:
+                    self._set_headers(500)
+                    self.wfile.write(json.dumps({
+                        "success": False, 
+                        "error": "Sunucuda Paymaster Private Key tanımlı değil."
+                    }).encode())
+                    return
+
+                # 2. Paymaster İşlemi Üstlenir (Gaz Ücretini Paymaster Öder)
+                paymaster_account = w3.eth.account.from_key(PAYMASTER_PRIVATE_KEY)
+                amount_wei = int(amount_ctm * (10**18))
+                
+                nonce = w3.eth.get_transaction_count(paymaster_account.address, 'pending')
+                tx = contract.functions.transfer(recipient, amount_wei).build_transaction({
+                    'from': paymaster_account.address,
+                    'nonce': nonce,
+                    'gas': 120000,
+                    'maxFeePerGas': w3.to_wei('2', 'gwei'),
+                    'maxPriorityFeePerGas': w3.to_wei('1', 'gwei'),
+                    'chainId': 84532
+                })
+
+                signed_tx = w3.eth.account.sign_transaction(tx, PAYMASTER_PRIVATE_KEY)
+                tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+                
+                receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
+                if receipt.status != 1:
+                    raise Exception("İşlem ağda başarısız oldu (Reverted).")
+
+                tx_hash_hex = tx_hash.hex() if tx_hash.hex().startswith("0x") else f"0x{tx_hash.hex()}"
+
+                self._set_headers(200)
+                self.wfile.write(json.dumps({
+                    "success": True, 
+                    "txHash": tx_hash_hex
+                }).encode())
+
+            except Exception as e:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({
+                    "success": False, 
+                    "error": str(e)
+                }).encode())
+        else:
+            self._set_headers(404)
+
+def start_health_check_server():
+    port = int(os.getenv("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), PaymasterRelayerHandler)
+    print(f"🌐 Paymaster Relayer & Health Check Server {port} portunda aktif!")
+    server.serve_forever()
+
+threading.Thread(target=start_health_check_server, daemon=True).start()
+
+# --- 3. TELEGRAM BOT LOGIC ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_text = (
         "⚡ <b>Continuum Network ($CTM) Testnet Faucet Bot</b>\n\n"
@@ -70,10 +148,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(welcome_text, parse_mode="HTML", disable_web_page_preview=True)
 
 def execute_transfer_sync(user_address: str, amount: int):
-    """Web3 transferini gerçekleştirir ve blokzincir onayını bekler."""
+    """Web3 Faucet transferini gerçekleştirir ve onay bekler."""
     faucet_account = w3.eth.account.from_key(PAYMASTER_PRIVATE_KEY)
 
-    # 1. Faucet Cüzdanındaki CTM Bakiyesini Kontrol Et
     faucet_balance = contract.functions.balanceOf(faucet_account.address).call()
     if faucet_balance < amount:
         raise Exception("Faucet cüzdanında yeterli $CTM kalmadı! Lütfen yöneticinizle iletişime geçin.")
@@ -92,7 +169,6 @@ def execute_transfer_sync(user_address: str, amount: int):
     signed_tx = w3.eth.account.sign_transaction(tx, PAYMASTER_PRIVATE_KEY)
     tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
 
-    # 2. Blokzincir Onayını Bekle (Timeout: 30 sn)
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
     if receipt.status != 1:
         raise Exception("İşlem ağda gönderildi fakat başarısız oldu (Reverted). Faucet cüzdanının Sepolia ETH gaz bakiyesini kontrol edin.")
@@ -103,7 +179,7 @@ def execute_transfer_sync(user_address: str, amount: int):
 async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg_user_id = update.effective_user.id
 
-    # 1. Telegram Kanal Katılım Kontrolü
+    # Telegram Kanal Katılım Kontrolü
     try:
         member = await context.bot.get_chat_member(chat_id=REQUIRED_CHANNEL, user_id=tg_user_id)
         if member.status in ['left', 'kicked', 'banned']:
@@ -122,7 +198,6 @@ async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     raw_address = context.args[0].strip()
     
-    # Asenkron Adres Doğrulama
     is_valid = await asyncio.to_thread(w3.is_address, raw_address)
     if not is_valid:
         await update.message.reply_text("❌ Invalid Ethereum address! Check and try again.")
@@ -131,7 +206,7 @@ async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_address = Web3.to_checksum_address(raw_address)
     now = datetime.now()
 
-    # 2. Telegram Kullanıcısı Cooldown Kontrolü
+    # Cooldown Kontrolleri
     if tg_user_id in user_cooldowns:
         last_claim = user_cooldowns[tg_user_id]
         if now - last_claim < timedelta(hours=24):
@@ -141,7 +216,6 @@ async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"⏳ Cooldown active for your account! Try again in {hours}h {minutes}m.")
             return
 
-    # 3. Cüzdan Adresi Cooldown Kontrolü
     if user_address in address_cooldowns:
         last_claim = address_cooldowns[user_address]
         if now - last_claim < timedelta(hours=24):
@@ -159,7 +233,6 @@ async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         amount = 100 * (10 ** 18)
-        # Web3 transferini bloklama yapmadan asenkron çalıştırır ve onay bekler
         tx_hash_str = await asyncio.to_thread(execute_transfer_sync, user_address, amount)
 
         user_cooldowns[tg_user_id] = now
@@ -184,7 +257,7 @@ def main():
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("faucet", faucet))
-    print("🤖 Faucet Bot başarıyla çalıştırıldı ve dinliyor...")
+    print("🤖 Faucet Bot & Paymaster Relayer başarıyla çalıştırıldı...")
     app.run_polling()
 
 if __name__ == "__main__":
