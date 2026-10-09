@@ -60,18 +60,24 @@ address_cooldowns = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_text = (
-        "⚡ *Continuum Network ($CTM) Testnet Faucet Bot*\n\n"
+        "⚡ <b>Continuum Network ($CTM) Testnet Faucet Bot</b>\n\n"
         "Welcome to Continuum L2 Testnet! You can request testnet $CTM tokens to participate in "
         "gasless transactions and explore the ecosystem.\n\n"
-        f"📢 *Join Channel:* {CHANNEL_LINK}\n"
-        "📌 *Command:* `/faucet <YOUR_WALLET_ADDRESS>`\n"
-        "⏱ *Limit:* 100 CTM per user/address every 24 hours."
+        f"📢 <b>Join Channel:</b> <a href='{CHANNEL_LINK}'>{CHANNEL_LINK}</a>\n"
+        "📌 <b>Command:</b> <code>/faucet &lt;YOUR_WALLET_ADDRESS&gt;</code>\n"
+        "⏱ <b>Limit:</b> 100 CTM per user/address every 24 hours."
     )
-    await update.message.reply_text(welcome_text, parse_mode="Markdown", disable_web_page_preview=True)
+    await update.message.reply_text(welcome_text, parse_mode="HTML", disable_web_page_preview=True)
 
-async def execute_transfer(user_address: str, amount: int):
-    """Senkron Web3 işlemlerini asenkron iş parçacığında çalıştırır."""
+def execute_transfer_sync(user_address: str, amount: int):
+    """Web3 transferini gerçekleştirir ve blokzincir onayını bekler."""
     faucet_account = w3.eth.account.from_key(PAYMASTER_PRIVATE_KEY)
+
+    # 1. Faucet Cüzdanındaki CTM Bakiyesini Kontrol Et
+    faucet_balance = contract.functions.balanceOf(faucet_account.address).call()
+    if faucet_balance < amount:
+        raise Exception("Faucet cüzdanında yeterli $CTM kalmadı! Lütfen yöneticinizle iletişime geçin.")
+
     nonce = w3.eth.get_transaction_count(faucet_account.address, 'pending')
 
     tx = contract.functions.transfer(user_address, amount).build_transaction({
@@ -85,7 +91,14 @@ async def execute_transfer(user_address: str, amount: int):
 
     signed_tx = w3.eth.account.sign_transaction(tx, PAYMASTER_PRIVATE_KEY)
     tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-    return tx_hash.hex()
+
+    # 2. Blokzincir Onayını Bekle (Timeout: 30 sn)
+    receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
+    if receipt.status != 1:
+        raise Exception("İşlem ağda gönderildi fakat başarısız oldu (Reverted). Faucet cüzdanının Sepolia ETH gaz bakiyesini kontrol edin.")
+
+    tx_hash_hex = tx_hash.hex()
+    return tx_hash_hex if tx_hash_hex.startswith("0x") else f"0x{tx_hash_hex}"
 
 async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg_user_id = update.effective_user.id
@@ -95,8 +108,8 @@ async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         member = await context.bot.get_chat_member(chat_id=REQUIRED_CHANNEL, user_id=tg_user_id)
         if member.status in ['left', 'kicked', 'banned']:
             await update.message.reply_text(
-                f"🚀 *To use this bot, you must join our channel first:*\n{CHANNEL_LINK}",
-                parse_mode="Markdown",
+                f"🚀 <b>To use this bot, you must join our channel first:</b>\n<a href='{CHANNEL_LINK}'>{CHANNEL_LINK}</a>",
+                parse_mode="HTML",
                 disable_web_page_preview=True
             )
             return
@@ -104,7 +117,7 @@ async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print(f"Kanal kontrol hatası (Bot kanalda admin mi?): {e}")
 
     if not context.args:
-        await update.message.reply_text("❌ Please provide a wallet address.\nExample: `/faucet 0x123...`", parse_mode="Markdown")
+        await update.message.reply_text("❌ Please provide a wallet address.\nExample: <code>/faucet 0x123...</code>", parse_mode="HTML")
         return
 
     raw_address = context.args[0].strip()
@@ -146,17 +159,17 @@ async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         amount = 100 * (10 ** 18)
-        # Web3 transferini bloklama yapmadan çalıştırır
-        tx_hash = await asyncio.to_thread(execute_transfer, user_address, amount)
+        # Web3 transferini bloklama yapmadan asenkron çalıştırır ve onay bekler
+        tx_hash_str = await asyncio.to_thread(execute_transfer_sync, user_address, amount)
 
         user_cooldowns[tg_user_id] = now
         address_cooldowns[user_address] = now
 
         await msg.edit_text(
-            f"✅ *100 $CTM Successfully Sent!*\n\n"
-            f"👤 *Recipient:* `{user_address}`\n"
-            f"🔗 *Tx Hash:* [View on Basescan](https://sepolia.basescan.org/tx/0x{tx_hash})",
-            parse_mode="Markdown",
+            f"✅ <b>100 $CTM Successfully Sent!</b>\n\n"
+            f"👤 <b>Recipient:</b> <code>{user_address}</code>\n"
+            f"🔗 <b>Tx Hash:</b> <a href='https://sepolia.basescan.org/tx/{tx_hash_str}'>View on Basescan</a>",
+            parse_mode="HTML",
             disable_web_page_preview=True
         )
     except Exception as e:
