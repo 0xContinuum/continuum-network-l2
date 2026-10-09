@@ -90,15 +90,15 @@ class PaymasterRelayerHandler(BaseHTTPRequestHandler):
                 # 2. Kullanıcının Mevcut Sepolia ETH Bakiyesini Kontrol Et
                 user_eth_balance = w3.eth.get_balance(user_address)
                 
-                # Kullanıcının gazı yetersizse (<0.00003 ETH) Paymaster 0.0001 ETH sponsor olur
-                if user_eth_balance < w3.to_wei(0.00003, 'ether'):
+                # Kullanıcının gazı yetersizse (<0.0003 ETH) Paymaster 0.0005 ETH sponsor olur (L1+L2 Gazı İçin)
+                if user_eth_balance < w3.to_wei(0.0003, 'ether'):
                     paymaster_account = w3.eth.account.from_key(PAYMASTER_PRIVATE_KEY)
                     nonce = w3.eth.get_transaction_count(paymaster_account.address, 'pending')
                     
                     tx = {
                         'nonce': nonce,
                         'to': user_address,
-                        'value': w3.to_wei(0.0001, 'ether'),
+                        'value': w3.to_wei(0.0005, 'ether'),
                         'gas': 21000,
                         'maxFeePerGas': w3.to_wei('2', 'gwei'),
                         'maxPriorityFeePerGas': w3.to_wei('1', 'gwei'),
