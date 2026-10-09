@@ -3,6 +3,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../sequ
 import streamlit as st
 import pandas as pd
 import time
+import requests
 from web3 import Web3
 
 # Deployed Base Sepolia Kontrat Adresi
@@ -84,42 +85,70 @@ ERC20_ABI = [
     }
 ]
 
-@st.cache_data(ttl=12) # 12 saniyede bir otomatik veriyi yeniler
+@st.cache_data(ttl=10) # 10 saniyede bir otomatik veriyi yeniler
 def fetch_base_sepolia_data():
+    latest_block = None
+    total_burned = 0.0
+    tx_list = []
+
+    # 1. Web3 ile güncel blok numarası ve yakılan CTM miktarını çek
     try:
         w3 = Web3(Web3.HTTPProvider(RPC_URL))
-        if not w3.is_connected():
-            return None, 0, 0, pd.DataFrame()
-
-        contract = w3.eth.contract(address=Web3.to_checksum_address(DEPLOYED_CONTRACT_ADDRESS), abi=ERC20_ABI)
-        
-        latest_block = w3.eth.block_number
-        
-        # Yakılan Miktar
-        try:
+        if w3.is_connected():
+            latest_block = w3.eth.block_number
+            contract = w3.eth.contract(address=Web3.to_checksum_address(DEPLOYED_CONTRACT_ADDRESS), abi=ERC20_ABI)
             raw_burned = contract.functions.balanceOf(BURN_ADDRESS).call()
             total_burned = raw_burned / (10**18)
-        except:
-            total_burned = 0
+    except Exception:
+        pass
 
-        # Son Transfer Event'lerini Çek
-        from_block = max(0, latest_block - 40000)
-        events = contract.events.Transfer.get_logs(fromBlock=from_block, toBlock='latest')
-        
-        tx_list = []
-        for event in reversed(events):
-            val = event['args']['value'] / (10**18)
-            tx_list.append({
-                "Tx Hash": event['transactionHash'].hex(),
-                "Blok": event['blockNumber'],
-                "Gönderen": event['args']['from'],
-                "Alıcı": event['args']['to'],
-                "Miktar ($CTM)": f"{val:,.2f} CTM"
-            })
-            
-        return latest_block, total_burned, len(events), pd.DataFrame(tx_list)
-    except Exception as e:
-        return None, 0, 0, pd.DataFrame()
+    # 2. Basescan API ile Tüm Geçmiş Transfer Hareketlerini Çek (RPC Blok Sınırına Takılmaz)
+    try:
+        api_url = f"https://api-sepolia.basescan.org/api?module=account&action=tokentx&contractaddress={DEPLOYED_CONTRACT_ADDRESS}&page=1&offset=100&sort=desc"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        res = requests.get(api_url, headers=headers, timeout=6)
+        data = res.json()
+
+        if data.get("status") == "1" and "result" in data:
+            for tx in data["result"]:
+                val = float(tx["value"]) / (10**18)
+                from_addr = tx["from"]
+                to_addr = tx["to"]
+
+                if latest_block is None and "blockNumber" in tx:
+                    latest_block = int(tx["blockNumber"])
+
+                tx_list.append({
+                    "Tx Hash": tx["hash"],
+                    "Blok": int(tx["blockNumber"]),
+                    "Gönderen": Web3.to_checksum_address(from_addr),
+                    "Alıcı": Web3.to_checksum_address(to_addr),
+                    "Miktar ($CTM)": f"{val:,.2f} CTM"
+                })
+    except Exception:
+        pass
+
+    # 3. Fallback: API yanıt vermezse küçük aralıkla RPC'den dene
+    if not tx_list and latest_block:
+        try:
+            w3 = Web3(Web3.HTTPProvider(RPC_URL))
+            contract = w3.eth.contract(address=Web3.to_checksum_address(DEPLOYED_CONTRACT_ADDRESS), abi=ERC20_ABI)
+            from_block = max(0, latest_block - 2000)
+            events = contract.events.Transfer.get_logs(fromBlock=from_block, toBlock='latest')
+            for event in reversed(events):
+                val = event['args']['value'] / (10**18)
+                tx_list.append({
+                    "Tx Hash": event['transactionHash'].hex(),
+                    "Blok": event['blockNumber'],
+                    "Gönderen": event['args']['from'],
+                    "Alıcı": event['args']['to'],
+                    "Miktar ($CTM)": f"{val:,.2f} CTM"
+                })
+        except Exception:
+            pass
+
+    df = pd.DataFrame(tx_list)
+    return latest_block, total_burned, len(tx_list), df
 
 live_block, live_burned, live_tx_count, df_live_tx = fetch_base_sepolia_data()
 
@@ -198,7 +227,6 @@ tab1, tab2, tab3, tab4 = st.tabs([
 with tab1:
     st.subheader("🔗 Base Sepolia Üzerindeki Canlı CTM Transferleri")
     if not df_live_tx.empty:
-        # Basescan linkleri eklenmiş tablo
         df_display = df_live_tx.copy()
         df_display['Tx Hash'] = df_display['Tx Hash'].apply(
             lambda x: f"[{x[:10]}...{x[-8:]}](https://sepolia.basescan.org/tx/{x})"
