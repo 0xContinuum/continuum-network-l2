@@ -191,13 +191,13 @@
         const NFT_CONTRACT_ADDRESS = "0x759Acd678668DbdF08df0B59aEEc5E9577F3BD2D";
         const RPC_URL = "https://sepolia.base.org";
         
-        // Render Paymaster Sponsor Servis Adresi
         const SPONSOR_API_URL = "https://continuum-faucet-bot.onrender.com/api/sponsor-gas";
 
         const ERC20_ABI = [
             "function balanceOf(address owner) view returns (uint256)",
             "function transfer(address to, uint256 amount) returns (bool)",
-            "function decimals() view returns (uint8)"
+            "function decimals() view returns (uint8)",
+            "event Transfer(address indexed from, address indexed to, uint256 value)"
         ];
 
         const NFT_ABI = [
@@ -240,6 +240,7 @@
                         updateUI(userAddress, "🟢 Base Sepolia (MetaMask)");
                         await updateBalance();
                         await checkNftStatus();
+                        await checkTask2Status();
                         return;
                     }
                 } catch (e) {
@@ -263,6 +264,7 @@
             updateUI(userAddress, "🟢 Base Sepolia (Telegram Wallet)");
             await updateBalance();
             await checkNftStatus();
+            await checkTask2Status();
         }
 
         async function connectWallet() {
@@ -277,6 +279,7 @@
                     updateUI(userAddress, "🟢 Base Sepolia (MetaMask)");
                     await updateBalance();
                     await checkNftStatus();
+                    await checkTask2Status();
                 } catch (err) {
                     alert("MetaMask Hatası: " + err.message);
                 }
@@ -291,6 +294,37 @@
             document.getElementById('networkStatus').className = "text-xs font-semibold text-emerald-400 mt-1";
         }
 
+        function markTask2Completed() {
+            const badge = document.getElementById("task2Badge");
+            if (badge) {
+                badge.innerText = "✓ Tamamlandı";
+                badge.className = "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-lg text-[10px] font-semibold";
+            }
+        }
+
+        async function checkTask2Status() {
+            if (!userAddress || !provider) return;
+            try {
+                // 1. Yerel Hafıza Kontrolü
+                if (localStorage.getItem(`ctm_task2_${userAddress}`) === "true") {
+                    markTask2Completed();
+                    return;
+                }
+
+                // 2. Zincir Üstü Event Kontrolü (Görünmeyen veya Geçmiş Transferler İçin)
+                const readContract = new ethers.Contract(CTM_CONTRACT_ADDRESS, ERC20_ABI, provider);
+                const filter = readContract.filters.Transfer(userAddress, null);
+                const events = await readContract.queryFilter(filter, -50000); // Son blokları tara
+
+                if (events && events.length > 0) {
+                    localStorage.setItem(`ctm_task2_${userAddress}`, "true");
+                    markTask2Completed();
+                }
+            } catch (err) {
+                console.error("Görev 2 kontrol hatası:", err);
+            }
+        }
+
         async function updateBalance() {
             if (!userAddress) return;
             try {
@@ -301,7 +335,6 @@
                 
                 document.getElementById('ctmBalance').innerText = `${rawUserBalance.toLocaleString()} $CTM`;
 
-                // Paymaster Rozeti Güncelleme (≥ 100 CTM Durumu)
                 const paymasterBadge = document.getElementById('paymasterBadge');
                 if (rawUserBalance >= 100) {
                     paymasterBadge.innerHTML = "⚡ Paymaster Süpvanse (0 ETH Gas)";
@@ -310,6 +343,8 @@
                     paymasterBadge.innerHTML = "🔥 CTM Gas Modu (<100 CTM)";
                     paymasterBadge.className = "text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full font-mono flex items-center gap-1";
                 }
+
+                await checkTask2Status();
             } catch (err) {
                 console.error("Bakiye okuma hatası:", err);
             }
@@ -357,7 +392,6 @@
                 if (rawUserBalance >= 100) {
                     statusBox.innerText = "⚡ Paymaster Süpvanse Modu: Arka planda gaz sponsorluğu alınıyor...";
 
-                    // 1. Paymaster Sponsor API'sine istek atıp kullanıcının cüzdanına gaz yüklenir
                     const response = await fetch(SPONSOR_API_URL, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -373,15 +407,12 @@
                     }
 
                     statusBox.innerText = "🚀 Gaz sponsorluğu tanımlandı! İşlem ağa gönderiliyor...";
-
-                    // RPC Senkronizasyonu İçin 1.5 Saniye Tampon Bekleme
                     await new Promise(r => setTimeout(r, 1500));
 
                 } else {
                     statusBox.innerText = "⏳ CTM Gaz Modu: İşlem cüzdanınızdan doğrudan yayınlanıyor...";
                 }
 
-                // 2. Transfer işlemi kullanıcının kendi cüzdanından doğrudan gönderilir
                 const parsedAmount = ethers.utils.parseUnits(amount.toString(), 18);
                 
                 const tx = await ctmContract.transfer(recipient, parsedAmount, { 
@@ -394,6 +425,10 @@
                 statusBox.classList.remove('bg-blue-900/30', 'text-blue-300');
                 statusBox.classList.add('bg-emerald-900/30', 'text-emerald-400');
                 statusBox.innerText = `✅ Transfer Başarılı!\nTx Hash: ${tx.hash}`;
+
+                // Görev 2'yi Anında Tamamlandı İşaretle
+                markTask2Completed();
+                localStorage.setItem(`ctm_task2_${userAddress}`, "true");
 
                 await updateBalance();
             } catch (err) {
