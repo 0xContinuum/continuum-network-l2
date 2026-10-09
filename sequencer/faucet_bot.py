@@ -27,6 +27,10 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 PAYMASTER_PRIVATE_KEY = os.getenv("PAYMASTER_PRIVATE_KEY")
 BASE_SEPOLIA_RPC = "https://sepolia.base.org"
 
+# Kanal Katılım Ayarları
+REQUIRED_CHANNEL = "@ContinuumAnnouncements"
+CHANNEL_LINK = "https://t.me/ContinuumAnnouncements"
+
 CONTRACT_ADDRESS = "0x078712Ac537F24B76a1AAB05624c02A9E0a28C13"
 
 w3 = Web3(Web3.HTTPProvider(BASE_SEPOLIA_RPC))
@@ -59,10 +63,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "⚡ *Continuum Network ($CTM) Testnet Faucet Bot*\n\n"
         "Welcome to Continuum L2 Testnet! You can request testnet $CTM tokens to participate in "
         "gasless transactions and explore the ecosystem.\n\n"
+        f"📢 *Join Channel:* {CHANNEL_LINK}\n"
         "📌 *Command:* `/faucet <YOUR_WALLET_ADDRESS>`\n"
         "⏱ *Limit:* 100 CTM per user/address every 24 hours."
     )
-    await update.message.reply_text(welcome_text, parse_mode="Markdown")
+    await update.message.reply_text(welcome_text, parse_mode="Markdown", disable_web_page_preview=True)
 
 async def execute_transfer(user_address: str, amount: int):
     """Senkron Web3 işlemlerini asenkron iş parçacığında çalıştırır."""
@@ -83,6 +88,21 @@ async def execute_transfer(user_address: str, amount: int):
     return tx_hash.hex()
 
 async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    tg_user_id = update.effective_user.id
+
+    # 1. Telegram Kanal Katılım Kontrolü
+    try:
+        member = await context.bot.get_chat_member(chat_id=REQUIRED_CHANNEL, user_id=tg_user_id)
+        if member.status in ['left', 'kicked', 'banned']:
+            await update.message.reply_text(
+                f"🚀 *To use this bot, you must join our channel first:*\n{CHANNEL_LINK}",
+                parse_mode="Markdown",
+                disable_web_page_preview=True
+            )
+            return
+    except Exception as e:
+        print(f"Kanal kontrol hatası (Bot kanalda admin mi?): {e}")
+
     if not context.args:
         await update.message.reply_text("❌ Please provide a wallet address.\nExample: `/faucet 0x123...`", parse_mode="Markdown")
         return
@@ -96,10 +116,9 @@ async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     user_address = Web3.to_checksum_address(raw_address)
-    tg_user_id = update.effective_user.id
     now = datetime.now()
 
-    # 1. Telegram Kullanıcısı Cooldown Kontrolü
+    # 2. Telegram Kullanıcısı Cooldown Kontrolü
     if tg_user_id in user_cooldowns:
         last_claim = user_cooldowns[tg_user_id]
         if now - last_claim < timedelta(hours=24):
@@ -109,7 +128,7 @@ async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"⏳ Cooldown active for your account! Try again in {hours}h {minutes}m.")
             return
 
-    # 2. Cüzdan Adresi Cooldown Kontrolü
+    # 3. Cüzdan Adresi Cooldown Kontrolü
     if user_address in address_cooldowns:
         last_claim = address_cooldowns[user_address]
         if now - last_claim < timedelta(hours=24):
