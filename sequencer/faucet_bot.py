@@ -41,7 +41,7 @@ contract = w3.eth.contract(address=Web3.to_checksum_address(CONTRACT_ADDRESS), a
 user_cooldowns = {}
 address_cooldowns = {}
 
-# --- 2. RENDER HEALTH CHECK & PAYMASTER RELAYER API SERVER ---
+# --- 2. RENDER HEALTH CHECK & PAYMASTER SPONSOR API SERVER ---
 class PaymasterRelayerHandler(BaseHTTPRequestHandler):
     def _set_headers(self, status=200):
         self.send_response(status)
@@ -56,28 +56,26 @@ class PaymasterRelayerHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         self._set_headers(200)
-        self.wfile.write(json.dumps({"status": "ok", "message": "Continuum Paymaster Relayer Active!"}).encode())
+        self.wfile.write(json.dumps({"status": "ok", "message": "Continuum Paymaster Sponsor Active!"}).encode())
 
     def do_POST(self):
-        if self.path == "/api/paymaster-transfer":
+        if self.path == "/api/sponsor-gas":
             content_length = int(self.headers.get('Content-Length', 0))
             post_data = self.rfile.read(content_length)
             
             try:
                 data = json.loads(post_data.decode('utf-8'))
-                sender = Web3.to_checksum_address(data.get("sender"))
-                recipient = Web3.to_checksum_address(data.get("recipient"))
-                amount_ctm = float(data.get("amount"))
+                user_address = Web3.to_checksum_address(data.get("userAddress"))
 
-                # 1. Gönderen Kullanıcı Bakiye Kontrolü (>= 100 CTM Şartı)
-                sender_balance = contract.functions.balanceOf(sender).call()
+                # 1. Bakiye Kontrolü (>= 100 CTM Şartı)
+                sender_balance = contract.functions.balanceOf(user_address).call()
                 sender_ctm = sender_balance / (10**18)
 
                 if sender_ctm < 100:
                     self._set_headers(400)
                     self.wfile.write(json.dumps({
                         "success": False, 
-                        "error": "Paymaster kullanımı için cüzdanınızda en az 100 $CTM bulunmalıdır!"
+                        "error": "Paymaster gaz desteği için cüzdanınızda en az 100 $CTM bulunmalıdır!"
                     }).encode())
                     return
 
@@ -89,48 +87,44 @@ class PaymasterRelayerHandler(BaseHTTPRequestHandler):
                     }).encode())
                     return
 
-                # 2. Paymaster İşlemi Üstlenir (Gaz Ücretini Paymaster Öder)
-                paymaster_account = w3.eth.account.from_key(PAYMASTER_PRIVATE_KEY)
-                amount_wei = int(amount_ctm * (10**18))
+                # 2. Kullanıcının Mevcut Sepolia ETH Bakiyesini Kontrol Et
+                user_eth_balance = w3.eth.get_balance(user_address)
                 
-                nonce = w3.eth.get_transaction_count(paymaster_account.address, 'pending')
-                tx = contract.functions.transfer(recipient, amount_wei).build_transaction({
-                    'from': paymaster_account.address,
-                    'nonce': nonce,
-                    'gas': 120000,
-                    'maxFeePerGas': w3.to_wei('2', 'gwei'),
-                    'maxPriorityFeePerGas': w3.to_wei('1', 'gwei'),
-                    'chainId': 84532
-                })
+                # Kullanıcının gazı yetersizse (<0.00003 ETH) Paymaster 0.0001 ETH sponsor olur
+                if user_eth_balance < w3.to_wei(0.00003, 'ether'):
+                    paymaster_account = w3.eth.account.from_key(PAYMASTER_PRIVATE_KEY)
+                    nonce = w3.eth.get_transaction_count(paymaster_account.address, 'pending')
+                    
+                    tx = {
+                        'nonce': nonce,
+                        'to': user_address,
+                        'value': w3.to_wei(0.0001, 'ether'),
+                        'gas': 21000,
+                        'maxFeePerGas': w3.to_wei('2', 'gwei'),
+                        'maxPriorityFeePerGas': w3.to_wei('1', 'gwei'),
+                        'chainId': 84532
+                    }
 
-                signed_tx = w3.eth.account.sign_transaction(tx, PAYMASTER_PRIVATE_KEY)
-                tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-                
-                receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
-                if receipt.status != 1:
-                    raise Exception("İşlem ağda başarısız oldu (Reverted).")
-
-                tx_hash_hex = tx_hash.hex() if tx_hash.hex().startswith("0x") else f"0x{tx_hash.hex()}"
+                    signed_tx = w3.eth.account.sign_transaction(tx, PAYMASTER_PRIVATE_KEY)
+                    tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+                    w3.eth.wait_for_transaction_receipt(tx_hash, timeout=15)
 
                 self._set_headers(200)
                 self.wfile.write(json.dumps({
                     "success": True, 
-                    "txHash": tx_hash_hex
+                    "message": "Gaz sponsorluğu sağlandı."
                 }).encode())
 
             except Exception as e:
                 self._set_headers(500)
-                self.wfile.write(json.dumps({
-                    "success": False, 
-                    "error": str(e)
-                }).encode())
+                self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode())
         else:
             self._set_headers(404)
 
 def start_health_check_server():
     port = int(os.getenv("PORT", 10000))
     server = HTTPServer(("0.0.0.0", port), PaymasterRelayerHandler)
-    print(f"🌐 Paymaster Relayer & Health Check Server {port} portunda aktif!")
+    print(f"🌐 Paymaster Sponsor Server {port} portunda aktif!")
     server.serve_forever()
 
 threading.Thread(target=start_health_check_server, daemon=True).start()
@@ -179,7 +173,6 @@ def execute_transfer_sync(user_address: str, amount: int):
 async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg_user_id = update.effective_user.id
 
-    # Telegram Kanal Katılım Kontrolü
     try:
         member = await context.bot.get_chat_member(chat_id=REQUIRED_CHANNEL, user_id=tg_user_id)
         if member.status in ['left', 'kicked', 'banned']:
@@ -206,7 +199,6 @@ async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_address = Web3.to_checksum_address(raw_address)
     now = datetime.now()
 
-    # Cooldown Kontrolleri
     if tg_user_id in user_cooldowns:
         last_claim = user_cooldowns[tg_user_id]
         if now - last_claim < timedelta(hours=24):
