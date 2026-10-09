@@ -191,8 +191,8 @@
         const NFT_CONTRACT_ADDRESS = "0x759Acd678668DbdF08df0B59aEEc5E9577F3BD2D";
         const RPC_URL = "https://sepolia.base.org";
         
-        // Render Paymaster Relayer Servis Adresi
-        const RELAYER_API_URL = "https://continuum-faucet-bot.onrender.com/api/paymaster-transfer";
+        // Render Paymaster Sponsor Servis Adresi
+        const SPONSOR_API_URL = "https://continuum-faucet-bot.onrender.com/api/sponsor-gas";
 
         const ERC20_ABI = [
             "function balanceOf(address owner) view returns (uint256)",
@@ -339,7 +339,7 @@
             }
         }
 
-        /* --- 💸 PAYMASTER RELAYER SUPPORTED TRANSFER LOGIC --- */
+        /* --- 💸 PAYMASTER SPONSORED TRANSFER LOGIC --- */
         async function sendTokens() {
             const recipient = document.getElementById('recipientInput').value;
             const amount = document.getElementById('amountInput').value;
@@ -355,44 +355,41 @@
                 statusBox.classList.add('bg-blue-900/30', 'text-blue-300');
 
                 if (rawUserBalance >= 100) {
-                    statusBox.innerText = "⚡ Paymaster Süpvanse Modu: İşlem Relayer üzerinden gazsız işleniyor...";
+                    statusBox.innerText = "⚡ Paymaster Süpvanse Modu: Arka planda gaz sponsorluğu alınıyor...";
 
-                    // Paymaster Relayer API'sine İstek Gönderilir
-                    const response = await fetch(RELAYER_API_URL, {
+                    // 1. Paymaster Sponsor API'sine istek atıp kullanıcının cüzdanına gaz yüklenir
+                    const response = await fetch(SPONSOR_API_URL, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
-                            sender: userAddress,
-                            recipient: recipient,
-                            amount: amount
+                            userAddress: userAddress
                         })
                     });
 
                     const result = await response.json();
 
                     if (!result.success) {
-                        throw new Error(result.error || "Paymaster transfer işlemi başarısız oldu.");
+                        throw new Error(result.error || "Gaz sponsorluğu alınamadı.");
                     }
 
-                    statusBox.classList.remove('bg-blue-900/30', 'text-blue-300');
-                    statusBox.classList.add('bg-emerald-900/30', 'text-emerald-400');
-                    statusBox.innerText = `✅ Transfer Başarılı (0 ETH Gas)!\nTx Hash: ${result.txHash}`;
-
+                    statusBox.innerText = "🚀 İşlem kullanıcının cüzdanı üzerinden ağa basılıyor...";
                 } else {
                     statusBox.innerText = "⏳ CTM Gaz Modu: İşlem cüzdanınızdan doğrudan yayınlanıyor...";
-                    const parsedAmount = ethers.utils.parseUnits(amount.toString(), 18);
-                    
-                    const tx = await ctmContract.transfer(recipient, parsedAmount, { 
-                        gasLimit: 150000 
-                    });
-                    
-                    statusBox.innerText = `🚀 İşlem ağa basıldı! Tx Hash:\n${tx.hash}\nOnay bekleniyor...`;
-                    await tx.wait();
-
-                    statusBox.classList.remove('bg-blue-900/30', 'text-blue-300');
-                    statusBox.classList.add('bg-emerald-900/30', 'text-emerald-400');
-                    statusBox.innerText = `✅ Transfer Başarılı!\nTx Hash: ${tx.hash}`;
                 }
+
+                // 2. Transfer işlemi kullanıcının kendi cüzdanından doğrudan gönderilir
+                const parsedAmount = ethers.utils.parseUnits(amount.toString(), 18);
+                
+                const tx = await ctmContract.transfer(recipient, parsedAmount, { 
+                    gasLimit: 150000 
+                });
+                
+                statusBox.innerText = `🚀 İşlem ağa basıldı! Tx Hash:\n${tx.hash}\nOnay bekleniyor...`;
+                await tx.wait();
+
+                statusBox.classList.remove('bg-blue-900/30', 'text-blue-300');
+                statusBox.classList.add('bg-emerald-900/30', 'text-emerald-400');
+                statusBox.innerText = `✅ Transfer Başarılı!\nTx Hash: ${tx.hash}`;
 
                 await updateBalance();
             } catch (err) {
