@@ -372,7 +372,11 @@
                         throw new Error(result.error || "Gaz sponsorluğu alınamadı.");
                     }
 
-                    statusBox.innerText = "🚀 İşlem kullanıcının cüzdanı üzerinden ağa basılıyor...";
+                    statusBox.innerText = "🚀 Gaz sponsorluğu tanımlandı! İşlem ağa gönderiliyor...";
+
+                    // RPC Senkronizasyonu İçin 1.5 Saniye Tampon Bekleme
+                    await new Promise(r => setTimeout(r, 1500));
+
                 } else {
                     statusBox.innerText = "⏳ CTM Gaz Modu: İşlem cüzdanınızdan doğrudan yayınlanıyor...";
                 }
