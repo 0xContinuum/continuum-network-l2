@@ -212,29 +212,54 @@ class PaymasterRelayerHandler(BaseHTTPRequestHandler):
                 sender_id = str(data.get("sender_id"))
                 user_address = data.get("user_address")
 
+                db = load_ref_data()
+                users = db.get("users", {})
+
+                # 24 Saatlik Şans Sandığı Cooldown Kontrolü
+                if sender_id in users:
+                    now = datetime.now()
+                    last_chest_str = users[sender_id].get("last_chest", "")
+                    
+                    can_open = True
+                    if last_chest_str:
+                        last_chest = datetime.fromisoformat(last_chest_str)
+                        if now - last_chest < timedelta(hours=24):
+                            can_open = False
+
+                    if not can_open:
+                        self._set_headers(400)
+                        self.wfile.write(json.dumps({
+                            "success": False, 
+                            "error": "⏳ Günlük şans sandığı hakkını kullandın! 24 saatte bir açabilirsin."
+                        }).encode())
+                        return
+                else:
+                    self._set_headers(404)
+                    self.wfile.write(json.dumps({"success": False, "error": "Kullanıcı bulunamadı."}).encode())
+                    return
+
+                # 100 CTM Bakiye Kontrolü
                 if user_address:
                     bal = contract.functions.balanceOf(Web3.to_checksum_address(user_address)).call() / (10**18)
                     if bal < 100:
                         self._set_headers(400)
-                        self.wfile.write(json.dumps({"success": False, "error": "Şans sandığı gönderebilmek için en az 100 $CTM bakiyeniz olmalıdır!"}).encode())
+                        self.wfile.write(json.dumps({
+                            "success": False, 
+                            "error": "Şans sandığı açabilmek için cüzdanınızda en az 100 $CTM olmalıdır!"
+                        }).encode())
                         return
 
-                db = load_ref_data()
-                users = db.get("users", {})
+                reward = random.randint(25, 300)
+                users[sender_id]["points"] = users[sender_id].get("points", 0) + reward
+                users[sender_id]["last_chest"] = now.isoformat()
+                save_ref_data(db)
 
-                if sender_id in users:
-                    reward = random.randint(25, 300)
-                    users[sender_id]["points"] = users[sender_id].get("points", 0) + reward
-                    save_ref_data(db)
-
-                    self._set_headers(200)
-                    self.wfile.write(json.dumps({
-                        "success": True, 
-                        "message": f"🎁 Şans Sandığı Başarıyla Açıldı! +{reward} Puan Kazandınız!",
-                        "new_points": users[sender_id]["points"]
-                    }).encode())
-                else:
-                    self._set_headers(404)
+                self._set_headers(200)
+                self.wfile.write(json.dumps({
+                    "success": True, 
+                    "message": f"🎁 Şans Sandığı Başarıyla Açıldı! +{reward} Puan Kazandınız!",
+                    "new_points": users[sender_id]["points"]
+                }).encode())
             except Exception as e:
                 self._set_headers(500)
                 self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode())
