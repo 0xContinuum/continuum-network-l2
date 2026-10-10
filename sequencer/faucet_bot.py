@@ -1,5 +1,6 @@
 import os
 import json
+import random
 import asyncio
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -41,7 +42,7 @@ contract = w3.eth.contract(address=Web3.to_checksum_address(CONTRACT_ADDRESS), a
 user_cooldowns = {}
 address_cooldowns = {}
 
-# --- REFERRAL & LEADERBOARD DATA ENGINE ---
+# --- REFERRAL, GAME & LEADERBOARD DATA ENGINE ---
 DATA_FILE = "referrals.json"
 
 def load_ref_data():
@@ -60,7 +61,7 @@ def save_ref_data(data):
     except Exception as e:
         print(f"Kayıt hatası: {e}")
 
-# --- 2. RENDER HEALTH CHECK, PAYMASTER & LEADERBOARD API SERVER ---
+# --- 2. RENDER HEALTH CHECK, PAYMASTER & GAME API SERVER ---
 class PaymasterRelayerHandler(BaseHTTPRequestHandler):
     def _set_headers(self, status=200):
         self.send_response(status)
@@ -90,13 +91,81 @@ class PaymasterRelayerHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"success": True, "leaderboard": leaderboard[:100]}).encode())
         else:
             self._set_headers(200)
-            self.wfile.write(json.dumps({"status": "ok", "message": "Continuum Paymaster & Referral API Active!"}).encode())
+            self.wfile.write(json.dumps({"status": "ok", "message": "Continuum Game & Paymaster API Active!"}).encode())
 
     def do_POST(self):
-        if self.path == "/api/sponsor-gas":
-            content_length = int(self.headers.get('Content-Length', 0))
-            post_data = self.rfile.read(content_length)
-            
+        content_length = int(self.headers.get('Content-Length', 0))
+        post_data = self.rfile.read(content_length) if content_length > 0 else b'{}'
+
+        if self.path == "/api/farm":
+            try:
+                data = json.loads(post_data.decode('utf-8'))
+                tg_id = str(data.get("user_id"))
+                db = load_ref_data()
+                users = db.get("users", {})
+
+                if tg_id in users:
+                    now = datetime.now()
+                    last_farm_str = users[tg_id].get("last_farm", "")
+                    
+                    can_farm = True
+                    if last_farm_str:
+                        last_farm = datetime.fromisoformat(last_farm_str)
+                        if now - last_farm < timedelta(hours=8):
+                            can_farm = False
+
+                    if can_farm:
+                        gained = 100  # 8 Saatlik Farming Ödülü
+                        users[tg_id]["points"] = users[tg_id].get("points", 0) + gained
+                        users[tg_id]["last_farm"] = now.isoformat()
+                        save_ref_data(db)
+                        self._set_headers(200)
+                        self.wfile.write(json.dumps({"success": True, "message": "+100 Puan Toplandı!", "new_points": users[tg_id]["points"]}).encode())
+                    else:
+                        self._set_headers(400)
+                        self.wfile.write(json.dumps({"success": False, "error": "Henüz farming süren dolmadı (8 saat)!"}).encode())
+                else:
+                    self._set_headers(404)
+                    self.wfile.write(json.dumps({"success": False, "error": "Kullanıcı bulunamadı."}).encode())
+            except Exception as e:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode())
+
+        elif self.path == "/api/send-chest":
+            try:
+                data = json.loads(post_data.decode('utf-8'))
+                sender_id = str(data.get("sender_id"))
+                user_address = data.get("user_address")
+
+                # 100 CTM Bakiye Kontrolü
+                if user_address:
+                    bal = contract.functions.balanceOf(Web3.to_checksum_address(user_address)).call() / (10**18)
+                    if bal < 100:
+                        self._set_headers(400)
+                        self.wfile.write(json.dumps({"success": False, "error": "Şans sandığı gönderebilmek için en az 100 $CTM bakiyeniz olmalıdır!"}).encode())
+                        return
+
+                db = load_ref_data()
+                users = db.get("users", {})
+
+                if sender_id in users:
+                    reward = random.randint(25, 300)
+                    users[sender_id]["points"] = users[sender_id].get("points", 0) + reward
+                    save_ref_data(db)
+
+                    self._set_headers(200)
+                    self.wfile.write(json.dumps({
+                        "success": True, 
+                        "message": f"🎁 Şans Sandığı Başarıyla Açıldı! +{reward} Puan Kazandınız!",
+                        "new_points": users[sender_id]["points"]
+                    }).encode())
+                else:
+                    self._set_headers(404)
+            except Exception as e:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode())
+
+        elif self.path == "/api/sponsor-gas":
             try:
                 data = json.loads(post_data.decode('utf-8'))
                 user_address = Web3.to_checksum_address(data.get("userAddress"))
@@ -106,18 +175,12 @@ class PaymasterRelayerHandler(BaseHTTPRequestHandler):
 
                 if sender_ctm < 100:
                     self._set_headers(400)
-                    self.wfile.write(json.dumps({
-                        "success": False, 
-                        "error": "Paymaster gaz desteği için cüzdanınızda en az 100 $CTM bulunmalıdır!"
-                    }).encode())
+                    self.wfile.write(json.dumps({"success": False, "error": "Paymaster gaz desteği için cüzdanınızda en az 100 $CTM bulunmalıdır!"}).encode())
                     return
 
                 if not PAYMASTER_PRIVATE_KEY:
                     self._set_headers(500)
-                    self.wfile.write(json.dumps({
-                        "success": False, 
-                        "error": "Sunucuda Paymaster Private Key tanımlı değil."
-                    }).encode())
+                    self.wfile.write(json.dumps({"success": False, "error": "Sunucuda Paymaster Private Key tanımlı değil."}).encode())
                     return
 
                 user_eth_balance = w3.eth.get_balance(user_address)
@@ -141,11 +204,7 @@ class PaymasterRelayerHandler(BaseHTTPRequestHandler):
                     w3.eth.wait_for_transaction_receipt(tx_hash, timeout=15)
 
                 self._set_headers(200)
-                self.wfile.write(json.dumps({
-                    "success": True, 
-                    "message": "Gaz sponsorluğu sağlandı."
-                }).encode())
-
+                self.wfile.write(json.dumps({"success": True, "message": "Gaz sponsorluğu sağlandı."}).encode())
             except Exception as e:
                 self._set_headers(500)
                 self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode())
@@ -155,7 +214,7 @@ class PaymasterRelayerHandler(BaseHTTPRequestHandler):
 def start_health_check_server():
     port = int(os.getenv("PORT", 10000))
     server = HTTPServer(("0.0.0.0", port), PaymasterRelayerHandler)
-    print(f"🌐 Paymaster & Referral API Server {port} portunda aktif!")
+    print(f"🌐 Game & Paymaster Relayer Server {port} portunda aktif!")
     server.serve_forever()
 
 threading.Thread(target=start_health_check_server, daemon=True).start()
@@ -170,22 +229,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     users = db.setdefault("users", {})
     referred_by = db.setdefault("referred_by", {})
 
-    # Kullanıcıyı kaydet
     if tg_user_id not in users:
         users[tg_user_id] = {
             "username": username,
-            "points": 10,  # Katılım puanı
+            "points": 10,
             "referrals_count": 0
         }
 
-    # Referral İşleme
     if context.args and tg_user_id not in referred_by:
         referrer_id = context.args[0].replace("ref_", "").strip()
         if referrer_id != tg_user_id and referrer_id in users:
             referred_by[tg_user_id] = referrer_id
             users[referrer_id]["referrals_count"] += 1
-            users[referrer_id]["points"] += 50  # Davet eden kişiye +50 Puan
-            users[tg_user_id]["points"] += 20    # Davet edilen kişiye +20 Puan
+            users[referrer_id]["points"] += 50
+            users[tg_user_id]["points"] += 20
             
             try:
                 await context.bot.send_message(
@@ -202,8 +259,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ref_link = f"https://t.me/{bot_username}?start=ref_{tg_user_id}"
 
     welcome_text = (
-        "⚡ <b>Continuum Network ($CTM) Testnet & Referral Bot</b>\n\n"
-        "Welcome to Continuum L2 Ecosystem! Complete tasks, invite friends, and climb the Leaderboard for Mainnet Airdrop allocations.\n\n"
+        "⚡ <b>Continuum Network ($CTM) Testnet & Game Hub</b>\n\n"
+        "Welcome to Continuum L2 Ecosystem! Tap to farm $CTM Points, complete X tasks, send Mystery Chests, and climb the Leaderboard!\n\n"
         f"🎁 <b>Your Referral Link:</b>\n<code>{ref_link}</code>\n\n"
         f"📊 <b>Your Points:</b> {users[tg_user_id]['points']} PTS | <b>Referrals:</b> {users[tg_user_id]['referrals_count']}\n\n"
         f"📢 <b>Join Channel:</b> <a href='{CHANNEL_LINK}'>{CHANNEL_LINK}</a>\n"
@@ -245,7 +302,7 @@ def execute_transfer_sync(user_address: str, amount: int):
     faucet_account = w3.eth.account.from_key(PAYMASTER_PRIVATE_KEY)
     faucet_balance = contract.functions.balanceOf(faucet_account.address).call()
     if faucet_balance < amount:
-        raise Exception("Faucet cüzdanında yeterli $CTM kalmadı! Lütfen yöneticinizle iletişime geçin.")
+        raise Exception("Faucet cüzdanında yeterli $CTM kalmadı!")
 
     nonce = w3.eth.get_transaction_count(faucet_account.address, 'pending')
 
@@ -263,7 +320,7 @@ def execute_transfer_sync(user_address: str, amount: int):
 
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
     if receipt.status != 1:
-        raise Exception("İşlem ağda gönderildi fakat başarısız oldu (Reverted). Faucet cüzdanının Sepolia ETH gaz bakiyesini kontrol edin.")
+        raise Exception("İşlem ağda gönderildi fakat başarısız oldu (Reverted).")
 
     tx_hash_hex = tx_hash.hex()
     return tx_hash_hex if tx_hash_hex.startswith("0x") else f"0x{tx_hash_hex}"
@@ -328,11 +385,10 @@ async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_cooldowns[tg_user_id] = now
         address_cooldowns[user_address] = now
 
-        # Faucet kullanan kişiye puan ekle
         db = load_ref_data()
         str_uid = str(tg_user_id)
         if str_uid in db.get("users", {}):
-            db["users"][str_uid]["points"] += 15  # Faucet talebi +15 Puan
+            db["users"][str_uid]["points"] += 15
             save_ref_data(db)
 
         await msg.edit_text(
@@ -356,7 +412,7 @@ def main():
     app.add_handler(CommandHandler("faucet", faucet))
     app.add_handler(CommandHandler("referral", referral))
     app.add_handler(CommandHandler("leaderboard", leaderboard))
-    print("🤖 Faucet Bot, Referral Engine & Paymaster Relayer aktif...")
+    print("🤖 Faucet Bot, Game Hub & Paymaster Relayer aktif...")
     app.run_polling()
 
 if __name__ == "__main__":
