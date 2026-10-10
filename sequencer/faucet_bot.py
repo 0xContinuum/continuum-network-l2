@@ -41,7 +41,26 @@ contract = w3.eth.contract(address=Web3.to_checksum_address(CONTRACT_ADDRESS), a
 user_cooldowns = {}
 address_cooldowns = {}
 
-# --- 2. RENDER HEALTH CHECK & PAYMASTER SPONSOR API SERVER ---
+# --- REFERRAL & LEADERBOARD DATA ENGINE ---
+DATA_FILE = "referrals.json"
+
+def load_ref_data():
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"users": {}, "referred_by": {}}
+
+def save_ref_data(data):
+    try:
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4)
+    except Exception as e:
+        print(f"Kayıt hatası: {e}")
+
+# --- 2. RENDER HEALTH CHECK, PAYMASTER & LEADERBOARD API SERVER ---
 class PaymasterRelayerHandler(BaseHTTPRequestHandler):
     def _set_headers(self, status=200):
         self.send_response(status)
@@ -55,8 +74,23 @@ class PaymasterRelayerHandler(BaseHTTPRequestHandler):
         self._set_headers(200)
 
     def do_GET(self):
-        self._set_headers(200)
-        self.wfile.write(json.dumps({"status": "ok", "message": "Continuum Paymaster Sponsor Active!"}).encode())
+        if self.path == "/api/leaderboard":
+            data = load_ref_data()
+            users = data.get("users", {})
+            leaderboard = []
+            for uid, info in users.items():
+                leaderboard.append({
+                    "user_id": uid,
+                    "username": info.get("username", "Anonim"),
+                    "points": info.get("points", 0),
+                    "referrals": info.get("referrals_count", 0)
+                })
+            leaderboard.sort(key=lambda x: x["points"], reverse=True)
+            self._set_headers(200)
+            self.wfile.write(json.dumps({"success": True, "leaderboard": leaderboard[:100]}).encode())
+        else:
+            self._set_headers(200)
+            self.wfile.write(json.dumps({"status": "ok", "message": "Continuum Paymaster & Referral API Active!"}).encode())
 
     def do_POST(self):
         if self.path == "/api/sponsor-gas":
@@ -67,7 +101,6 @@ class PaymasterRelayerHandler(BaseHTTPRequestHandler):
                 data = json.loads(post_data.decode('utf-8'))
                 user_address = Web3.to_checksum_address(data.get("userAddress"))
 
-                # 1. Bakiye Kontrolü (>= 100 CTM Şartı)
                 sender_balance = contract.functions.balanceOf(user_address).call()
                 sender_ctm = sender_balance / (10**18)
 
@@ -87,10 +120,8 @@ class PaymasterRelayerHandler(BaseHTTPRequestHandler):
                     }).encode())
                     return
 
-                # 2. Kullanıcının Mevcut Sepolia ETH Bakiyesini Kontrol Et
                 user_eth_balance = w3.eth.get_balance(user_address)
                 
-                # Kullanıcının gazı yetersizse (<0.0003 ETH) Paymaster 0.0005 ETH sponsor olur (L1+L2 Gazı İçin)
                 if user_eth_balance < w3.to_wei(0.0003, 'ether'):
                     paymaster_account = w3.eth.account.from_key(PAYMASTER_PRIVATE_KEY)
                     nonce = w3.eth.get_transaction_count(paymaster_account.address, 'pending')
@@ -124,27 +155,94 @@ class PaymasterRelayerHandler(BaseHTTPRequestHandler):
 def start_health_check_server():
     port = int(os.getenv("PORT", 10000))
     server = HTTPServer(("0.0.0.0", port), PaymasterRelayerHandler)
-    print(f"🌐 Paymaster Sponsor Server {port} portunda aktif!")
+    print(f"🌐 Paymaster & Referral API Server {port} portunda aktif!")
     server.serve_forever()
 
 threading.Thread(target=start_health_check_server, daemon=True).start()
 
 # --- 3. TELEGRAM BOT LOGIC ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    tg_user_id = str(user.id)
+    username = user.username or user.first_name or "Anonim"
+
+    db = load_ref_data()
+    users = db.setdefault("users", {})
+    referred_by = db.setdefault("referred_by", {})
+
+    # Kullanıcıyı kaydet
+    if tg_user_id not in users:
+        users[tg_user_id] = {
+            "username": username,
+            "points": 10,  # Katılım puanı
+            "referrals_count": 0
+        }
+
+    # Referral İşleme
+    if context.args and tg_user_id not in referred_by:
+        referrer_id = context.args[0].replace("ref_", "").strip()
+        if referrer_id != tg_user_id and referrer_id in users:
+            referred_by[tg_user_id] = referrer_id
+            users[referrer_id]["referrals_count"] += 1
+            users[referrer_id]["points"] += 50  # Davet eden kişiye +50 Puan
+            users[tg_user_id]["points"] += 20    # Davet edilen kişiye +20 Puan
+            
+            try:
+                await context.bot.send_message(
+                    chat_id=int(referrer_id),
+                    text=f"🎉 <b>Yeni Referans!</b>\n<code>@{username}</code> senin linkinle katıldı! +50 Puan kazandın.",
+                    parse_mode="HTML"
+                )
+            except Exception:
+                pass
+
+    save_ref_data(db)
+
+    bot_username = (await context.bot.get_me()).username
+    ref_link = f"https://t.me/{bot_username}?start=ref_{tg_user_id}"
+
     welcome_text = (
-        "⚡ <b>Continuum Network ($CTM) Testnet Faucet Bot</b>\n\n"
-        "Welcome to Continuum L2 Testnet! You can request testnet $CTM tokens to participate in "
-        "gasless transactions and explore the ecosystem.\n\n"
+        "⚡ <b>Continuum Network ($CTM) Testnet & Referral Bot</b>\n\n"
+        "Welcome to Continuum L2 Ecosystem! Complete tasks, invite friends, and climb the Leaderboard for Mainnet Airdrop allocations.\n\n"
+        f"🎁 <b>Your Referral Link:</b>\n<code>{ref_link}</code>\n\n"
+        f"📊 <b>Your Points:</b> {users[tg_user_id]['points']} PTS | <b>Referrals:</b> {users[tg_user_id]['referrals_count']}\n\n"
         f"📢 <b>Join Channel:</b> <a href='{CHANNEL_LINK}'>{CHANNEL_LINK}</a>\n"
         "📌 <b>Command:</b> <code>/faucet &lt;YOUR_WALLET_ADDRESS&gt;</code>\n"
-        "⏱ <b>Limit:</b> 100 CTM per user/address every 24 hours."
+        "🏆 <b>Leaderboard:</b> <code>/leaderboard</code>"
     )
     await update.message.reply_text(welcome_text, parse_mode="HTML", disable_web_page_preview=True)
 
-def execute_transfer_sync(user_address: str, amount: int):
-    """Web3 Faucet transferini gerçekleştirir ve onay bekler."""
-    faucet_account = w3.eth.account.from_key(PAYMASTER_PRIVATE_KEY)
+async def referral(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    tg_user_id = str(user.id)
+    db = load_ref_data()
+    u_data = db.get("users", {}).get(tg_user_id, {"points": 0, "referrals_count": 0})
 
+    bot_username = (await context.bot.get_me()).username
+    ref_link = f"https://t.me/{bot_username}?start=ref_{tg_user_id}"
+
+    msg = (
+        f"🔗 <b>Your Personal Referral Link:</b>\n<code>{ref_link}</code>\n\n"
+        f"🏆 <b>Total Points:</b> {u_data['points']} PTS\n"
+        f"👥 <b>Total Invited:</b> {u_data['referrals_count']} Users\n\n"
+        "💡 <i>Earn +50 Points for every friend who joins via your link!</i>"
+    )
+    await update.message.reply_text(msg, parse_mode="HTML", disable_web_page_preview=True)
+
+async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    db = load_ref_data()
+    users = db.get("users", {})
+    sorted_users = sorted(users.items(), key=lambda x: x[1].get("points", 0), reverse=True)[:10]
+
+    msg = "🏆 <b>Continuum Network — Top 10 Leaderboard</b>\n\n"
+    for idx, (uid, info) in enumerate(sorted_users, 1):
+        medal = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else f"{idx}."
+        msg += f"{medal} <b>@{info.get('username', 'Anonim')}</b> — {info.get('points', 0)} PTS ({info.get('referrals_count', 0)} Refs)\n"
+
+    await update.message.reply_text(msg, parse_mode="HTML")
+
+def execute_transfer_sync(user_address: str, amount: int):
+    faucet_account = w3.eth.account.from_key(PAYMASTER_PRIVATE_KEY)
     faucet_balance = contract.functions.balanceOf(faucet_account.address).call()
     if faucet_balance < amount:
         raise Exception("Faucet cüzdanında yeterli $CTM kalmadı! Lütfen yöneticinizle iletişime geçin.")
@@ -183,7 +281,7 @@ async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
     except Exception as e:
-        print(f"Kanal kontrol hatası (Bot kanalda admin mi?): {e}")
+        print(f"Kanal kontrol hatası: {e}")
 
     if not context.args:
         await update.message.reply_text("❌ Please provide a wallet address.\nExample: <code>/faucet 0x123...</code>", parse_mode="HTML")
@@ -230,6 +328,13 @@ async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_cooldowns[tg_user_id] = now
         address_cooldowns[user_address] = now
 
+        # Faucet kullanan kişiye puan ekle
+        db = load_ref_data()
+        str_uid = str(tg_user_id)
+        if str_uid in db.get("users", {}):
+            db["users"][str_uid]["points"] += 15  # Faucet talebi +15 Puan
+            save_ref_data(db)
+
         await msg.edit_text(
             f"✅ <b>100 $CTM Successfully Sent!</b>\n\n"
             f"👤 <b>Recipient:</b> <code>{user_address}</code>\n"
@@ -249,7 +354,9 @@ def main():
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("faucet", faucet))
-    print("🤖 Faucet Bot & Paymaster Relayer başarıyla çalıştırıldı...")
+    app.add_handler(CommandHandler("referral", referral))
+    app.add_handler(CommandHandler("leaderboard", leaderboard))
+    print("🤖 Faucet Bot, Referral Engine & Paymaster Relayer aktif...")
     app.run_polling()
 
 if __name__ == "__main__":
