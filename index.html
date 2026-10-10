@@ -83,6 +83,37 @@
             </div>
         </div>
 
+        <!-- 🚀 REFERRAL & LEADERBOARD CARD -->
+        <div class="bg-slate-900/90 rounded-2xl p-4 glow-box space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                <div class="flex items-center gap-2">
+                    <span class="text-lg">🤝</span>
+                    <h2 class="text-sm font-bold text-blue-400">Referral & Leaderboard Motoru</h2>
+                </div>
+                <span class="text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full font-mono">
+                    +50 Puan / Davet
+                </span>
+            </div>
+
+            <p class="text-xs text-slate-300 leading-relaxed">
+                Arkadaşlarını özel linkinle davet et! Her başarılı katılım için **+50 Puan** kazan ve Airdrop yarışında üst sıralara tırman.
+            </p>
+
+            <div class="flex gap-2">
+                <button onclick="copyRefLink()" class="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-2 text-xs rounded-xl transition shadow-lg shadow-blue-500/20">
+                    🔗 Davet Linkimi Kopyala
+                </button>
+                <button onclick="fetchLeaderboard()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-3 py-2 text-xs rounded-xl border border-slate-700">
+                    📊 Liderlik Tablosu
+                </button>
+            </div>
+
+            <div id="leaderboardBox" class="hidden p-3 bg-slate-950/80 rounded-xl border border-slate-800 space-y-2 text-xs">
+                <div class="font-bold text-amber-400 text-[11px] border-b border-slate-800 pb-1">🏆 Top 10 Şampiyonlar</div>
+                <div id="leaderboardList" class="space-y-1 font-mono text-[11px] text-slate-300">Yükleniyor...</div>
+            </div>
+        </div>
+
         <!-- 🏆 NFT & MODEL D QUEST CARD -->
         <div class="bg-slate-900/90 rounded-2xl p-4 glow-box-amber space-y-4">
             <div class="flex justify-between items-center border-b border-slate-800/80 pb-2.5">
@@ -192,6 +223,7 @@
         const RPC_URL = "https://sepolia.base.org";
         
         const SPONSOR_API_URL = "https://continuum-faucet-bot.onrender.com/api/sponsor-gas";
+        const LEADERBOARD_API_URL = "https://continuum-faucet-bot.onrender.com/api/leaderboard";
 
         const ERC20_ABI = [
             "function balanceOf(address owner) view returns (uint256)",
@@ -267,6 +299,41 @@
             await checkTask2Status();
         }
 
+        function copyRefLink() {
+            const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+            const uid = tgUser ? tgUser.id : "guest";
+            const refLink = `https://t.me/ContinuumCTM_bot?start=ref_${uid}`;
+            navigator.clipboard.writeText(refLink);
+            alert("🎉 Davet Linkiniz Kopyalandı!\n\n" + refLink);
+        }
+
+        async function fetchLeaderboard() {
+            const box = document.getElementById("leaderboardBox");
+            const list = document.getElementById("leaderboardList");
+            box.classList.toggle("hidden");
+
+            if (!box.classList.contains("hidden")) {
+                list.innerText = "Yükleniyor...";
+                try {
+                    const res = await fetch(LEADERBOARD_API_URL);
+                    const data = await res.json();
+                    if (data.success && data.leaderboard.length > 0) {
+                        list.innerHTML = data.leaderboard.map((item, idx) => {
+                            const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx+1}.`;
+                            return `<div class="flex justify-between py-0.5 border-b border-slate-900">
+                                <span>${medal} @${item.username}</span>
+                                <span class="text-blue-400 font-bold">${item.points} PTS (${item.referrals} Ref)</span>
+                            </div>`;
+                        }).join('');
+                    } else {
+                        list.innerText = "Henüz sıralama verisi bulunmuyor.";
+                    }
+                } catch (err) {
+                    list.innerText = "Liderlik verisi çekilemedi.";
+                }
+            }
+        }
+
         async function connectWallet() {
             if (window.ethereum) {
                 try {
@@ -305,16 +372,14 @@
         async function checkTask2Status() {
             if (!userAddress || !provider) return;
             try {
-                // 1. Yerel Hafıza Kontrolü
                 if (localStorage.getItem(`ctm_task2_${userAddress}`) === "true") {
                     markTask2Completed();
                     return;
                 }
 
-                // 2. Zincir Üstü Event Kontrolü (Görünmeyen veya Geçmiş Transferler İçin)
                 const readContract = new ethers.Contract(CTM_CONTRACT_ADDRESS, ERC20_ABI, provider);
                 const filter = readContract.filters.Transfer(userAddress, null);
-                const events = await readContract.queryFilter(filter, -50000); // Son blokları tara
+                const events = await readContract.queryFilter(filter, -50000);
 
                 if (events && events.length > 0) {
                     localStorage.setItem(`ctm_task2_${userAddress}`, "true");
@@ -426,7 +491,6 @@
                 statusBox.classList.add('bg-emerald-900/30', 'text-emerald-400');
                 statusBox.innerText = `✅ Transfer Başarılı!\nTx Hash: ${tx.hash}`;
 
-                // Görev 2'yi Anında Tamamlandı İşaretle
                 markTask2Completed();
                 localStorage.setItem(`ctm_task2_${userAddress}`, "true");
 
