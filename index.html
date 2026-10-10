@@ -152,20 +152,20 @@
             </div>
         </div>
 
-        <!-- 🚀 REFERRAL & LEADERBOARD CARD -->
+        <!-- 🚀 REFERRAL & FRIENDS CARD -->
         <div class="bg-slate-900/90 rounded-2xl p-4 glow-box space-y-4">
             <div class="flex justify-between items-center border-b border-slate-800 pb-2">
                 <div class="flex items-center gap-2">
                     <span class="text-lg">🤝</span>
-                    <h2 class="text-sm font-bold text-blue-400">Referral & Leaderboard Motoru</h2>
+                    <h2 class="text-sm font-bold text-blue-400">Referral & Arkadaşlarım</h2>
                 </div>
-                <span class="text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full font-mono">
-                    +50 Puan / Davet
+                <span id="friendCountBadge" class="text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full font-mono">
+                    0 Arkadaş
                 </span>
             </div>
 
             <p class="text-xs text-slate-300 leading-relaxed">
-                Arkadaşlarını özel linkinle davet et! Her başarılı katılım için **+50 Puan** kazan ve Airdrop yarışında üst sıralara tırman.
+                Arkadaşlarını özel linkinle davet et! Her katılım için **+50 Puan** kazan ve aşağıda arkadaş listeni takip et.
             </p>
 
             <div class="flex gap-2">
@@ -175,6 +175,14 @@
                 <button onclick="fetchLeaderboard()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-3 py-2 text-xs rounded-xl border border-slate-700">
                     📊 Liderlik Tablosu
                 </button>
+            </div>
+
+            <!-- ARKADAŞLARIM LİSTESİ -->
+            <div class="p-3 bg-slate-950/80 rounded-xl border border-slate-800 space-y-2 text-xs">
+                <div class="font-bold text-blue-400 text-[11px] border-b border-slate-800 pb-1">👥 Davet Ettiğim Arkadaşlarım</div>
+                <div id="friendsList" class="space-y-1.5 font-mono text-[11px] text-slate-300 max-h-36 overflow-y-auto">
+                    Yükleniyor...
+                </div>
             </div>
 
             <div id="leaderboardBox" class="hidden p-3 bg-slate-950/80 rounded-xl border border-slate-800 space-y-2 text-xs">
@@ -238,7 +246,7 @@
             <div id="nftStatus" class="hidden p-3 rounded-xl text-[11px] font-mono break-all text-center"></div>
         </div>
 
-        <!-- TRANSACTION CARD WITH PAYMASTER STATUS -->
+        <!-- TRANSACTION CARD WITH PAYMASTER STATUS & USERNAME SUPPORT -->
         <div class="bg-slate-900/80 rounded-2xl p-4 glow-box space-y-4">
             <div class="flex justify-between items-center">
                 <h2 class="text-base font-bold flex items-center gap-2">
@@ -251,8 +259,8 @@
 
             <div class="space-y-3">
                 <div>
-                    <label class="block text-[10px] font-semibold text-slate-400 mb-1">ALICI ADRESİ</label>
-                    <input id="recipientInput" type="text" placeholder="0x..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-blue-500 font-mono transition">
+                    <label class="block text-[10px] font-semibold text-slate-400 mb-1">ALICI (Cüzdan Adresi 0x... veya @kullaniciadi)</label>
+                    <input id="recipientInput" type="text" placeholder="0x... veya @kullaniciadi" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-blue-500 font-mono transition">
                 </div>
                 <div>
                     <label class="block text-[10px] font-semibold text-slate-400 mb-1">MİKTAR ($CTM)</label>
@@ -313,6 +321,7 @@
 
         window.addEventListener('DOMContentLoaded', async () => {
             await autoInitWallet();
+            await fetchMyFriends();
         });
 
         async function autoInitWallet() {
@@ -337,6 +346,7 @@
                         await updateBalance();
                         await checkNftStatus();
                         await checkTask2Status();
+                        registerWalletToBackend(userAddress, tgUser);
                         return;
                     }
                 } catch (e) {
@@ -361,6 +371,52 @@
             await updateBalance();
             await checkNftStatus();
             await checkTask2Status();
+            registerWalletToBackend(userAddress, tgUser);
+        }
+
+        // Otomatik Cüzdan Kayıt Fonksiyonu (Faucete gerek kalmadan @username eşlemesi sağlar)
+        async function registerWalletToBackend(address, tgUser) {
+            if (!tgUser || !tgUser.id || !address) return;
+            try {
+                await fetch(`${API_BASE_URL}/api/register-wallet`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        user_id: tgUser.id,
+                        username: tgUser.username || tgUser.first_name || "Anonim",
+                        wallet_address: address
+                    })
+                });
+            } catch (e) {
+                console.log("Cüzdan backend kayıt hatası:", e);
+            }
+        }
+
+        async function fetchMyFriends() {
+            const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+            const uid = tgUser ? tgUser.id : "guest";
+            const listEl = document.getElementById("friendsList");
+            const badgeEl = document.getElementById("friendCountBadge");
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/user-info?user_id=${uid}`);
+                const data = await res.json();
+                if (data.success) {
+                    badgeEl.innerText = `${data.friends.length} Arkadaş`;
+                    if (data.friends.length > 0) {
+                        listEl.innerHTML = data.friends.map(f => `
+                            <div class="flex justify-between py-1 border-b border-slate-900 items-center">
+                                <span>@${f.username}</span>
+                                <span class="text-blue-400">${f.points} PTS</span>
+                            </div>
+                        `).join('');
+                    } else {
+                        listEl.innerText = "Henüz davet ettiğin bir arkadaşın yok.";
+                    }
+                }
+            } catch (e) {
+                listEl.innerText = "Arkadaşlar yüklenemedi.";
+            }
         }
 
         async function startFarm() {
@@ -564,19 +620,36 @@
             }
         }
 
+        /* --- 💸 PAYMASTER SPONSORED TRANSFER & USERNAME RESOLUTION --- */
         async function sendTokens() {
-            const recipient = document.getElementById('recipientInput').value;
+            let rawRecipient = document.getElementById('recipientInput').value.trim();
             const amount = document.getElementById('amountInput').value;
             const statusBox = document.getElementById('txStatus');
 
-            if (!recipient || !amount) {
-                alert("Lütfen alıcı adresi ve miktarı girin!");
+            if (!rawRecipient || !amount) {
+                alert("Lütfen alıcı (adres veya @kullaniciadi) ve miktar girin!");
                 return;
             }
 
             try {
                 statusBox.classList.remove('hidden', 'bg-red-900/30', 'text-red-400');
                 statusBox.classList.add('bg-blue-900/30', 'text-blue-300');
+
+                let recipientAddress = rawRecipient;
+
+                if (rawRecipient.startsWith("@")) {
+                    statusBox.innerText = `🔍 ${rawRecipient} cüzdan adresi aranıyor...`;
+                    const res = await fetch(`${API_BASE_URL}/api/resolve?username=${rawRecipient}`);
+                    const data = await res.json();
+                    if (!data.success) {
+                        throw new Error(data.error || "Kullanıcı adı cüzdana dönüştürülemedi.");
+                    }
+                    recipientAddress = data.address;
+                }
+
+                if (!ethers.utils.isAddress(recipientAddress)) {
+                    throw new Error("Geçersiz alıcı cüzdan adresi!");
+                }
 
                 if (rawUserBalance >= 100) {
                     statusBox.innerText = "⚡ Paymaster Süpvanse Modu: Arka planda gaz sponsorluğu alınıyor...";
@@ -601,7 +674,7 @@
 
                 const parsedAmount = ethers.utils.parseUnits(amount.toString(), 18);
                 
-                const tx = await ctmContract.transfer(recipient, parsedAmount, { gasLimit: 150000 });
+                const tx = await ctmContract.transfer(recipientAddress, parsedAmount, { gasLimit: 150000 });
                 
                 statusBox.innerText = `🚀 İşlem ağa basıldı! Tx Hash:\n${tx.hash}\nOnay bekleniyor...`;
                 await tx.wait();
