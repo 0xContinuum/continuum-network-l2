@@ -4,6 +4,7 @@ import random
 import asyncio
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
 from datetime import datetime, timedelta
 from web3 import Web3
 from telegram import Update
@@ -75,7 +76,10 @@ class PaymasterRelayerHandler(BaseHTTPRequestHandler):
         self._set_headers(200)
 
     def do_GET(self):
-        if self.path == "/api/leaderboard":
+        parsed_url = urlparse(self.path)
+        query_params = parse_qs(parsed_url.query)
+
+        if parsed_url.path == "/api/leaderboard":
             data = load_ref_data()
             users = data.get("users", {})
             leaderboard = []
@@ -89,6 +93,51 @@ class PaymasterRelayerHandler(BaseHTTPRequestHandler):
             leaderboard.sort(key=lambda x: x["points"], reverse=True)
             self._set_headers(200)
             self.wfile.write(json.dumps({"success": True, "leaderboard": leaderboard[:100]}).encode())
+
+        elif parsed_url.path == "/api/user-info":
+            user_id = query_params.get("user_id", [None])[0]
+            db = load_ref_data()
+            users = db.get("users", {})
+            referred_by = db.get("referred_by", {})
+
+            if user_id and user_id in users:
+                u_info = users[user_id]
+                my_friends = []
+                for uid, ref_id in referred_by.items():
+                    if ref_id == user_id and uid in users:
+                        my_friends.append({
+                            "username": users[uid].get("username", "Anonim"),
+                            "points": users[uid].get("points", 0),
+                            "wallet": users[uid].get("wallet_address", "Henüz Cüzdan Aktif Değil")
+                        })
+                self._set_headers(200)
+                self.wfile.write(json.dumps({
+                    "success": True,
+                    "points": u_info.get("points", 0),
+                    "referrals_count": u_info.get("referrals_count", 0),
+                    "friends": my_friends
+                }).encode())
+            else:
+                self._set_headers(404)
+                self.wfile.write(json.dumps({"success": False, "error": "Kullanıcı bulunamadı."}).encode())
+
+        elif parsed_url.path == "/api/resolve":
+            username = query_params.get("username", [None])[0]
+            if username:
+                clean_name = username.replace("@", "").strip().lower()
+                db = load_ref_data()
+                users = db.get("users", {})
+                found_address = None
+                for uid, info in users.items():
+                    if info.get("username", "").lower() == clean_name:
+                        found_address = info.get("wallet_address")
+                        break
+                if found_address:
+                    self._set_headers(200)
+                    self.wfile.write(json.dumps({"success": True, "address": found_address}).encode())
+                    return
+            self._set_headers(404)
+            self.wfile.write(json.dumps({"success": False, "error": "Kullanıcı adı bulunamadı veya cüzdanı kayıtlı değil."}).encode())
         else:
             self._set_headers(200)
             self.wfile.write(json.dumps({"status": "ok", "message": "Continuum Game & Paymaster API Active!"}).encode())
@@ -97,7 +146,33 @@ class PaymasterRelayerHandler(BaseHTTPRequestHandler):
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length) if content_length > 0 else b'{}'
 
-        if self.path == "/api/farm":
+        if self.path == "/api/register-wallet":
+            try:
+                data = json.loads(post_data.decode('utf-8'))
+                tg_id = str(data.get("user_id"))
+                wallet_addr = data.get("wallet_address")
+                username = data.get("username", "Anonim")
+
+                db = load_ref_data()
+                users = db.setdefault("users", {})
+                if tg_id not in users:
+                    users[tg_id] = {"username": username, "points": 10, "referrals_count": 0}
+
+                if wallet_addr and Web3.is_address(wallet_addr):
+                    users[tg_id]["wallet_address"] = Web3.to_checksum_address(wallet_addr)
+                    if username and username != "Anonim":
+                        users[tg_id]["username"] = username
+                    save_ref_data(db)
+                    self._set_headers(200)
+                    self.wfile.write(json.dumps({"success": True, "message": "Cüzdan başarıyla eşlendi."}).encode())
+                else:
+                    self._set_headers(400)
+                    self.wfile.write(json.dumps({"success": False, "error": "Geçersiz cüzdan adresi."}).encode())
+            except Exception as e:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode())
+
+        elif self.path == "/api/farm":
             try:
                 data = json.loads(post_data.decode('utf-8'))
                 tg_id = str(data.get("user_id"))
@@ -115,7 +190,7 @@ class PaymasterRelayerHandler(BaseHTTPRequestHandler):
                             can_farm = False
 
                     if can_farm:
-                        gained = 100  # 8 Saatlik Farming Ödülü
+                        gained = 100
                         users[tg_id]["points"] = users[tg_id].get("points", 0) + gained
                         users[tg_id]["last_farm"] = now.isoformat()
                         save_ref_data(db)
@@ -137,7 +212,6 @@ class PaymasterRelayerHandler(BaseHTTPRequestHandler):
                 sender_id = str(data.get("sender_id"))
                 user_address = data.get("user_address")
 
-                # 100 CTM Bakiye Kontrolü
                 if user_address:
                     bal = contract.functions.balanceOf(Web3.to_checksum_address(user_address)).call() / (10**18)
                     if bal < 100:
@@ -327,6 +401,7 @@ def execute_transfer_sync(user_address: str, amount: int):
 
 async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg_user_id = update.effective_user.id
+    username = update.effective_user.username or update.effective_user.first_name or "Anonim"
 
     try:
         member = await context.bot.get_chat_member(chat_id=REQUIRED_CHANNEL, user_id=tg_user_id)
@@ -387,9 +462,13 @@ async def faucet(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         db = load_ref_data()
         str_uid = str(tg_user_id)
-        if str_uid in db.get("users", {}):
-            db["users"][str_uid]["points"] += 15
-            save_ref_data(db)
+        users = db.setdefault("users", {})
+        if str_uid not in users:
+            users[str_uid] = {"username": username, "points": 15, "referrals_count": 0}
+        
+        users[str_uid]["points"] += 15
+        users[str_uid]["wallet_address"] = user_address
+        save_ref_data(db)
 
         await msg.edit_text(
             f"✅ <b>100 $CTM Successfully Sent!</b>\n\n"
