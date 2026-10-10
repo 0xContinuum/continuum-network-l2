@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Continuum Network ($CTM) - Web3 DApp & NFT Portal</title>
+    <title>Continuum Network ($CTM) - Web3 DApp & Game Portal</title>
     <!-- Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- Tailwind CSS CDN -->
@@ -23,6 +23,13 @@
         .glow-box-amber {
             box-shadow: 0 0 25px rgba(245, 158, 11, 0.12);
             border: 1px solid rgba(245, 158, 11, 0.25);
+        }
+        .glow-box-purple {
+            box-shadow: 0 0 25px rgba(168, 85, 247, 0.15);
+            border: 1px solid rgba(168, 85, 247, 0.3);
+        }
+        .tap-btn:active {
+            transform: scale(0.95);
         }
     </style>
 </head>
@@ -55,7 +62,7 @@
                 Gazsız ve Işık Hızında <span class="text-blue-400">$CTM</span>
             </h1>
             <p class="text-slate-400 text-xs max-w-xl mx-auto">
-                Continuum L2 ekosisteminde bakiyeni görüntüle, görevleri tamamla ve OG Pioneer NFT'ni mint et.
+                Continuum L2 ekosisteminde puan topla, görevleri yap ve OG Pioneer NFT'ni mint et.
             </p>
         </div>
 
@@ -79,6 +86,68 @@
                 <div class="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">
                     <span class="text-[10px] text-slate-400 uppercase font-semibold">Ağ Durumu</span>
                     <div id="networkStatus" class="text-sm font-semibold text-slate-400 mt-1">Bağlanıyor...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 🎮 TAP-TO-FARM & DAILY QUESTS HUB -->
+        <div class="bg-slate-900/90 rounded-2xl p-4 glow-box-purple space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                <div class="flex items-center gap-2">
+                    <span class="text-lg">🎮</span>
+                    <h2 class="text-sm font-bold text-purple-400">Daily Farm & Tap Hub</h2>
+                </div>
+                <span class="text-[10px] bg-purple-500/10 text-purple-400 border border-purple-500/30 px-2 py-0.5 rounded-full font-mono">
+                    8 Saatte Bir +100 PTS
+                </span>
+            </div>
+
+            <div class="text-center space-y-3">
+                <button onclick="startFarm()" class="tap-btn bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold py-3 px-8 text-sm rounded-2xl shadow-lg shadow-purple-500/20 transition duration-150">
+                    ⚡ Start Farming (+100 PTS)
+                </button>
+                <div id="farmStatus" class="text-xs font-mono text-purple-300"></div>
+            </div>
+
+            <!-- 🎁 100 CTM MYSTERY CHEST -->
+            <div class="p-3 bg-slate-950/80 rounded-xl border border-purple-500/20 space-y-2">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-bold text-amber-400 flex items-center gap-1">
+                        🎁 100 $CTM Şans Sandığı (Mystery Chest)
+                    </span>
+                    <span class="text-[10px] text-slate-400">Min. 100 CTM Şartı</span>
+                </div>
+                <p class="text-[11px] text-slate-300">
+                    Cüzdanında 100 $CTM tutanlar arkadaşlarına şans sandığı göndererek **25 ile 300 arası rastgele puan** kazanır!
+                </p>
+                <button onclick="sendMysteryChest()" class="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-bold py-2 text-xs rounded-xl transition">
+                    🎁 Şans Sandığını Aç & Puan Topla
+                </button>
+                <div id="chestStatus" class="hidden p-2 rounded-lg text-[10px] font-mono text-center"></div>
+            </div>
+
+            <!-- 𝕏 SOCIAL QUESTS -->
+            <div class="space-y-2 pt-2 border-t border-slate-800">
+                <div class="text-[11px] font-bold text-slate-300">𝕏 (Twitter) Sosyal Görevleri</div>
+                
+                <div class="flex items-center justify-between p-2 bg-slate-950/60 rounded-xl text-xs">
+                    <div class="flex items-center gap-2">
+                        <span>𝕏</span>
+                        <a href="https://x.com/ContinuumL2" target="_blank" class="text-slate-200 hover:underline">@ContinuumL2 Hesabını Takip Et</a>
+                    </div>
+                    <button onclick="completeXTask(this, 100)" class="bg-purple-600/20 text-purple-400 border border-purple-500/30 px-2 py-1 rounded text-[10px] font-bold hover:bg-purple-600/40">
+                        +100 PTS
+                    </button>
+                </div>
+
+                <div class="flex items-center justify-between p-2 bg-slate-950/60 rounded-xl text-xs">
+                    <div class="flex items-center gap-2">
+                        <span>💬</span>
+                        <a href="https://x.com/ContinuumL2" target="_blank" class="text-slate-200 hover:underline">Son Tweet'i Beğen & Retweet Et</a>
+                    </div>
+                    <button onclick="completeXTask(this, 50)" class="bg-purple-600/20 text-purple-400 border border-purple-500/30 px-2 py-1 rounded text-[10px] font-bold hover:bg-purple-600/40">
+                        +50 PTS
+                    </button>
                 </div>
             </div>
         </div>
@@ -130,7 +199,6 @@
                 Görevleri tamamla, devredilemez <strong class="text-amber-400">OG Pioneer Soulbound NFT</strong>'ni mint et! Mainnet açılışında **Top 100** arasına girerek transfer edilebilir **Genesis NFT & Airdrop** hakkı kazan.
             </p>
 
-            <!-- Görev Listesi -->
             <div class="space-y-2">
                 <div class="flex items-center justify-between p-2.5 bg-slate-950/60 rounded-xl border border-slate-800/80 text-xs">
                     <div class="flex items-center gap-2">
@@ -163,12 +231,10 @@
                 </div>
             </div>
 
-            <!-- NFT Mint Butonu -->
             <button id="mintNftBtn" onclick="mintPioneerBadge()" class="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-bold py-2.5 text-xs rounded-xl transition duration-200 shadow-lg shadow-amber-500/20">
                 ✨ OG Pioneer NFT Mint Et (Gasless)
             </button>
 
-            <!-- Mint Durum Kutusu -->
             <div id="nftStatus" class="hidden p-3 rounded-xl text-[11px] font-mono break-all text-center"></div>
         </div>
 
@@ -178,7 +244,6 @@
                 <h2 class="text-base font-bold flex items-center gap-2">
                     <span>💸</span> $CTM Transfer Et
                 </h2>
-                <!-- Paymaster Status Badge -->
                 <span id="paymasterBadge" class="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono flex items-center gap-1">
                     ⚡ Paymaster Aktif (0 ETH Gas)
                 </span>
@@ -222,8 +287,7 @@
         const NFT_CONTRACT_ADDRESS = "0x759Acd678668DbdF08df0B59aEEc5E9577F3BD2D";
         const RPC_URL = "https://sepolia.base.org";
         
-        const SPONSOR_API_URL = "https://continuum-faucet-bot.onrender.com/api/sponsor-gas";
-        const LEADERBOARD_API_URL = "https://continuum-faucet-bot.onrender.com/api/leaderboard";
+        const API_BASE_URL = "https://continuum-faucet-bot.onrender.com";
 
         const ERC20_ABI = [
             "function balanceOf(address owner) view returns (uint256)",
@@ -299,6 +363,68 @@
             await checkTask2Status();
         }
 
+        async function startFarm() {
+            const status = document.getElementById("farmStatus");
+            const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+            const uid = tgUser ? tgUser.id : "guest";
+
+            status.innerText = "⏳ Farming başlatılıyor...";
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/farm`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ user_id: uid })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    status.innerText = `🎉 ${data.message} Güncel Puanın: ${data.new_points}`;
+                } else {
+                    status.innerText = `⚠️ ${data.error}`;
+                }
+            } catch (e) {
+                status.innerText = "❌ Sunucu bağlantı hatası.";
+            }
+        }
+
+        async function sendMysteryChest() {
+            const box = document.getElementById("chestStatus");
+            const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+            const uid = tgUser ? tgUser.id : "guest";
+
+            box.classList.remove("hidden", "bg-red-900/30", "text-red-400");
+            box.classList.add("bg-purple-900/30", "text-purple-300");
+            box.innerText = "⏳ Şans sandığı açılıyor (100 $CTM bakiye şartı doğrulanıyor)...";
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/send-chest`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ sender_id: uid, user_address: userAddress })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    box.classList.remove("bg-purple-900/30", "text-purple-300");
+                    box.classList.add("bg-emerald-900/30", "text-emerald-400");
+                    box.innerText = `${data.message}`;
+                } else {
+                    box.classList.remove("bg-purple-900/30", "text-purple-300");
+                    box.classList.add("bg-red-900/30", "text-red-400");
+                    box.innerText = `⚠️ ${data.error}`;
+                }
+            } catch (e) {
+                box.innerText = "❌ Sunucu bağlantı hatası.";
+            }
+        }
+
+        function completeXTask(btnElement, pts) {
+            btnElement.innerText = "✓ Tamamlandı";
+            btnElement.className = "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-[10px] font-bold cursor-not-allowed";
+            btnElement.disabled = true;
+            alert(`🎉 Görev Tamamlandı! +${pts} Puan hesabınıza eklendi.`);
+        }
+
         function copyRefLink() {
             const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
             const uid = tgUser ? tgUser.id : "guest";
@@ -315,14 +441,14 @@
             if (!box.classList.contains("hidden")) {
                 list.innerText = "Yükleniyor...";
                 try {
-                    const res = await fetch(LEADERBOARD_API_URL);
+                    const res = await fetch(`${API_BASE_URL}/api/leaderboard`);
                     const data = await res.json();
                     if (data.success && data.leaderboard.length > 0) {
                         list.innerHTML = data.leaderboard.map((item, idx) => {
                             const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx+1}.`;
                             return `<div class="flex justify-between py-0.5 border-b border-slate-900">
                                 <span>${medal} @${item.username}</span>
-                                <span class="text-blue-400 font-bold">${item.points} PTS (${item.referrals} Ref)</span>
+                                <span class="text-purple-400 font-bold">${item.points} PTS (${item.referrals} Ref)</span>
                             </div>`;
                         }).join('');
                     } else {
@@ -424,22 +550,20 @@
 
         function showPrivateKey() {
             if (!wallet) {
-                alert("MetaMask ile bağlısınız. Private Key'inize MetaMask eklentiniz üzerinden erişimleri görebilirsiniz.");
+                alert("MetaMask ile bağlısınız.");
                 return;
             }
 
             const confirmExport = confirm(
-                "⚠️ UYARI: Private Key'iniz cüzdanınızın tam kontrolünü verir. Bu anahtarı asla başkasıyla paylaşmayın!\n\n" +
-                "Private Key'inizi kopyalayıp MetaMask veya Trust Wallet'a aktarmak istiyor musunuz?"
+                "⚠️ UYARI: Private Key'iniz cüzdanınızın tam kontrolünü verir.\n\nPrivate Key'inizi kopyalamak istiyor musunuz?"
             );
 
             if (confirmExport) {
                 navigator.clipboard.writeText(wallet.privateKey);
-                alert("✅ Private Key panoya kopyalandı!\n\nMetaMask -> Hesap Ekle -> 'İçe Aktar (Import Account)' seçeneğine yapıştırabilirsiniz.");
+                alert("✅ Private Key panoya kopyalandı!");
             }
         }
 
-        /* --- 💸 PAYMASTER SPONSORED TRANSFER LOGIC --- */
         async function sendTokens() {
             const recipient = document.getElementById('recipientInput').value;
             const amount = document.getElementById('amountInput').value;
@@ -457,12 +581,10 @@
                 if (rawUserBalance >= 100) {
                     statusBox.innerText = "⚡ Paymaster Süpvanse Modu: Arka planda gaz sponsorluğu alınıyor...";
 
-                    const response = await fetch(SPONSOR_API_URL, {
+                    const response = await fetch(`${API_BASE_URL}/api/sponsor-gas`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            userAddress: userAddress
-                        })
+                        body: JSON.stringify({ userAddress: userAddress })
                     });
 
                     const result = await response.json();
@@ -473,16 +595,13 @@
 
                     statusBox.innerText = "🚀 Gaz sponsorluğu tanımlandı! İşlem ağa gönderiliyor...";
                     await new Promise(r => setTimeout(r, 1500));
-
                 } else {
                     statusBox.innerText = "⏳ CTM Gaz Modu: İşlem cüzdanınızdan doğrudan yayınlanıyor...";
                 }
 
                 const parsedAmount = ethers.utils.parseUnits(amount.toString(), 18);
                 
-                const tx = await ctmContract.transfer(recipient, parsedAmount, { 
-                    gasLimit: 150000 
-                });
+                const tx = await ctmContract.transfer(recipient, parsedAmount, { gasLimit: 150000 });
                 
                 statusBox.innerText = `🚀 İşlem ağa basıldı! Tx Hash:\n${tx.hash}\nOnay bekleniyor...`;
                 await tx.wait();
@@ -502,7 +621,6 @@
             }
         }
 
-        /* --- 🏆 NFT MINT LOGIC --- */
         async function checkNftStatus() {
             if (!userAddress || !nftContract) return;
             try {
@@ -550,9 +668,7 @@
 
                 const metadataURI = "https://raw.githubusercontent.com/0xContinuum/continuum-network-l2/main/metadata/og_pioneer.json";
 
-                const tx = await nftContract.mintStandardBadge(userAddress, metadataURI, {
-                    gasLimit: 250000 
-                });
+                const tx = await nftContract.mintStandardBadge(userAddress, metadataURI, { gasLimit: 250000 });
 
                 statusBox.innerText = `🚀 İşlem ağa gönderildi!\nTx: ${tx.hash}\nOnay bekleniyor...`;
                 await tx.wait();
@@ -563,7 +679,6 @@
 
                 mintBtn.innerText = "✓ OG Pioneer NFT Cüzdanınızda";
                 mintBtn.className = "w-full bg-emerald-600 text-white font-bold py-2.5 text-xs rounded-xl opacity-90 cursor-not-allowed";
-
             } catch (err) {
                 console.error("NFT Mint Hatası:", err);
                 statusBox.classList.remove('hidden', 'bg-amber-900/30', 'text-amber-300');
