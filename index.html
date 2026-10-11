@@ -96,6 +96,41 @@
             </div>
         </div>
 
+        <!-- 📅 DAILY & WEEKLY CHECK-IN HUB -->
+        <div class="bg-slate-900/90 rounded-2xl p-4 glow-box-amber space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                <div class="flex items-center gap-2">
+                    <span class="text-lg">📅</span>
+                    <h2 class="text-sm font-bold text-amber-400" data-i18n="checkinHubTitle">Daily Check-In & Weekly Reward Hub</h2>
+                </div>
+                <span class="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full font-mono" data-i18n="checkinHubSub">
+                    On-Chain DAU
+                </span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <!-- Günlük Check-In -->
+                <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-2 text-center">
+                    <span class="text-xs font-bold text-slate-200" data-i18n="dailyTitle">📅 Daily Check-In (+50 PTS)</span>
+                    <p class="text-[10px] text-slate-400" data-i18n="dailyDesc">Claim daily gas quota & mint check-in activity on-chain.</p>
+                    <button onclick="dailyCheckIn()" id="dailyBtn" class="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-bold py-2 text-xs rounded-xl transition">
+                        Check-In Now
+                    </button>
+                    <div id="dailyStatus" class="text-[10px] font-mono text-amber-300"></div>
+                </div>
+
+                <!-- Haftalık Ödül Claim -->
+                <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-2 text-center">
+                    <span class="text-xs font-bold text-blue-400" data-i18n="weeklyTitle">🏆 Weekly Reward (+400 PTS)</span>
+                    <p class="text-[10px] text-slate-400" data-i18n="weeklyDesc">Unlock weekly loyalty reward and on-chain CTM bonus.</p>
+                    <button onclick="weeklyClaim()" id="weeklyBtn" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-2 text-xs rounded-xl transition">
+                        Claim Weekly Reward
+                    </button>
+                    <div id="weeklyStatus" class="text-[10px] font-mono text-blue-300"></div>
+                </div>
+            </div>
+        </div>
+
         <!-- 🎮 TAP-TO-FARM & DAILY QUESTS HUB -->
         <div class="bg-slate-900/90 rounded-2xl p-4 glow-box-purple space-y-4">
             <div class="flex justify-between items-center border-b border-slate-800 pb-2">
@@ -292,6 +327,12 @@
                 connectedWallet: "Connected Wallet",
                 balanceTitle: "Balance ($CTM)",
                 networkTitle: "Network Status",
+                checkinHubTitle: "Daily Check-In & Weekly Reward Hub",
+                checkinHubSub: "On-Chain DAU",
+                dailyTitle: "📅 Daily Check-In (+50 PTS)",
+                dailyDesc: "Claim daily gas quota & mint check-in activity on-chain.",
+                weeklyTitle: "🏆 Weekly Reward (+400 PTS)",
+                weeklyDesc: "Unlock weekly loyalty reward and on-chain CTM bonus.",
                 farmHubTitle: "Daily Farm & Tap Hub",
                 farmHubSub: "+100 PTS every 8h",
                 farmBtn: "⚡ Start Farming (+100 PTS)",
@@ -325,6 +366,12 @@
                 connectedWallet: "Bağlı Cüzdan",
                 balanceTitle: "Bakiye ($CTM)",
                 networkTitle: "Ağ Durumu",
+                checkinHubTitle: "Günlük Check-In & Haftalık Ödül Merkezi",
+                checkinHubSub: "Zincir Üstü DAU",
+                dailyTitle: "📅 Günlük Check-In (+50 PTS)",
+                dailyDesc: "Günlük gaz hakkını al ve zincir üstü aktivite kaydet.",
+                weeklyTitle: "🏆 Haftalık Ödül (+400 PTS)",
+                weeklyDesc: "Haftalık sadakat ödülünü topla ve büyük bonus kazan.",
                 farmHubTitle: "Daily Farm & Tap Hub",
                 farmHubSub: "8 Saatte Bir +100 PTS",
                 farmBtn: "⚡ Start Farming (+100 PTS)",
@@ -379,12 +426,16 @@
                 document.getElementById("chestBtn").innerText = "🎁 Şans Sandığını Aç & Puan Topla";
                 document.getElementById("mintNftBtn").innerText = "✨ OG Pioneer NFT Mint Et (Gasless)";
                 document.getElementById("transferBtn").innerText = "Transferi Onayla";
+                document.getElementById("dailyBtn").innerText = "Check-In Yap";
+                document.getElementById("weeklyBtn").innerText = "Haftalık Ödülü Al";
             } else {
                 document.getElementById("farmBtn").innerText = "⚡ Start Farming (+100 PTS)";
                 document.getElementById("copyRefBtn").innerText = "🔗 Copy My Invite Link";
                 document.getElementById("chestBtn").innerText = "🎁 Open Mystery Chest & Claim Points";
                 document.getElementById("mintNftBtn").innerText = "✨ Mint OG Pioneer NFT (Gasless)";
                 document.getElementById("transferBtn").innerText = "Confirm Transfer";
+                document.getElementById("dailyBtn").innerText = "Check-In Now";
+                document.getElementById("weeklyBtn").innerText = "Claim Weekly Reward";
             }
         }
 
@@ -537,6 +588,62 @@
                 }
             } catch (e) {
                 status.innerText = currentLang === 'tr' ? "❌ Sunucu bağlantı hatası." : "❌ Server connection error.";
+            }
+        }
+
+        async function dailyCheckIn() {
+            const status = document.getElementById("dailyStatus");
+            const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+            const uid = tgUser ? tgUser.id : "guest";
+
+            status.innerText = currentLang === 'tr' ? "⏳ Check-in (Zincir üstü tx)..." : "⏳ Check-in (On-chain tx)...";
+            try {
+                if (ctmContract && userAddress) {
+                    const tx = await ctmContract.transfer(userAddress, 0, { gasLimit: 50000 });
+                    await tx.wait();
+                }
+
+                const res = await fetch(`${API_BASE_URL}/api/daily-checkin`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ user_id: uid })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    status.innerText = `✅ ${data.message}`;
+                } else {
+                    status.innerText = `⚠️ ${data.error}`;
+                }
+            } catch (e) {
+                status.innerText = currentLang === 'tr' ? "❌ Check-in başarısız." : "❌ Check-in failed.";
+            }
+        }
+
+        async function weeklyClaim() {
+            const status = document.getElementById("weeklyStatus");
+            const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+            const uid = tgUser ? tgUser.id : "guest";
+
+            status.innerText = currentLang === 'tr' ? "⏳ Haftalık ödül (Zincir üstü tx)..." : "⏳ Weekly claim (On-chain tx)...";
+            try {
+                if (ctmContract && userAddress) {
+                    const tx = await ctmContract.transfer(userAddress, 0, { gasLimit: 50000 });
+                    await tx.wait();
+                }
+
+                const res = await fetch(`${API_BASE_URL}/api/weekly-claim`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ user_id: uid })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    status.innerText = `✅ ${data.message}`;
+                } else {
+                    status.innerText = `⚠️ ${data.error}`;
+                }
+            } catch (e) {
+                status.innerText = currentLang === 'tr' ? "❌ Haftalık ödül alınamadı." : "❌ Weekly claim failed.";
             }
         }
 
@@ -840,7 +947,7 @@
                 statusBox.innerText = currentLang === 'tr' ? `🎉 TEBRİKLER! OG Pioneer NFT Başarıyla Mint Edildi!\nTx: ${tx.hash}` : `🎉 SUCCESS! OG Pioneer NFT Minted Successfully!\nTx: ${tx.hash}`;
 
                 mintBtn.innerText = currentLang === 'tr' ? "✓ OG Pioneer NFT Cüzdanınızda" : "✓ OG Pioneer NFT Claimed";
-                mintBtn.className = "w-full bg-emerald-600 text-white font-bold py.5 text-xs rounded-xl opacity-90 cursor-not-allowed";
+                mintBtn.className = "w-full bg-emerald-600 text-white font-bold py-2.5 text-xs rounded-xl opacity-90 cursor-not-allowed";
             } catch (err) {
                 console.error("NFT Mint Error:", err);
                 statusBox.classList.remove('hidden', 'bg-amber-900/30', 'text-amber-300');
