@@ -145,16 +145,6 @@
                         +100 PTS
                     </button>
                 </div>
-
-                <div class="flex items-center justify-between p-2 bg-slate-950/60 rounded-xl text-xs">
-                    <div class="flex items-center gap-2">
-                        <span>💬</span>
-                        <a href="https://x.com/ContinuumL2" target="_blank" class="text-slate-200 hover:underline" data-i18n="taskLikeRt">Like & Retweet Last Post</a>
-                    </div>
-                    <button onclick="completeXTask(this, 50, 'https://x.com/ContinuumL2')" id="xTask2Btn" class="bg-purple-600/20 text-purple-400 border border-purple-500/30 px-2 py-1 rounded text-[10px] font-bold hover:bg-purple-600/40">
-                        +50 PTS
-                    </button>
-                </div>
             </div>
         </div>
 
@@ -311,7 +301,6 @@
                 chestBtn: "🎁 Open Mystery Chest & Claim Points",
                 socialQuestsTitle: "𝕏 (Twitter) Social Quests",
                 taskFollowX: "Follow @ContinuumL2 on X",
-                taskLikeRt: "Like & Retweet Last Post",
                 refCardTitle: "Referral & My Friends",
                 refCardDesc: "Invite friends with your unique link! Earn **+50 Points** for every friend and track your invited friends below.",
                 copyRefLink: "🔗 Copy My Invite Link",
@@ -345,7 +334,6 @@
                 chestBtn: "🎁 Şans Sandığını Aç & Puan Topla",
                 socialQuestsTitle: "𝕏 (Twitter) Sosyal Görevleri",
                 taskFollowX: "@ContinuumL2 Hesabını Takip Et",
-                taskLikeRt: "Son Tweet'i Beğen & Retweet Et",
                 refCardTitle: "Referral & Arkadaşlarım",
                 refCardDesc: "Arkadaşlarını özel linkinle davet et! Her katılım için **+50 Puan** kazan ve aşağıda arkadaş listeni takip et.",
                 copyRefLink: "🔗 Davet Linkimi Kopyala",
@@ -366,7 +354,6 @@
             }
         };
 
-        // Lang Initialization: Default EN, if Telegram lang is 'tr' -> TR
         let currentLang = 'en';
         if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe?.user) {
             const tgLang = window.Telegram.WebApp.initDataUnsafe.user.language_code;
@@ -379,7 +366,6 @@
             currentLang = lang;
             document.getElementById("langBtn").innerText = lang === 'tr' ? "🌐 TR" : "🌐 EN";
             
-            // Update all elements with data-i18n
             document.querySelectorAll("[data-i18n]").forEach(el => {
                 const key = el.getAttribute("data-i18n");
                 if (i18n[lang][key]) {
@@ -387,7 +373,6 @@
                 }
             });
 
-            // Update specific button texts
             if(lang === 'tr') {
                 document.getElementById("farmBtn").innerText = "⚡ Farming Başlat (+100 PTS)";
                 document.getElementById("copyRefBtn").innerText = "🔗 Davet Linkimi Kopyala";
@@ -457,6 +442,7 @@
                         await updateBalance();
                         await checkNftStatus();
                         await checkTask2Status();
+                        checkXTaskStatus();
                         registerWalletToBackend(userAddress, tgUser);
                         return;
                     }
@@ -482,6 +468,7 @@
             await updateBalance();
             await checkNftStatus();
             await checkTask2Status();
+            checkXTaskStatus();
             registerWalletToBackend(userAddress, tgUser);
         }
 
@@ -584,12 +571,28 @@
             }
         }
 
-        // X (Twitter) görevlerine tıklandığında önce X'e yönlendirip ardından puanı verir
+        // X Takip Görevi Kontrolü ve Kalıcı Tamamlama İşlevi
+        function markXTaskCompleted() {
+            const btn = document.getElementById("xTask1Btn");
+            if (btn) {
+                btn.innerText = currentLang === 'tr' ? "✓ Tamamlandı" : "✓ Completed";
+                btn.className = "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-[10px] font-bold cursor-not-allowed";
+                btn.disabled = true;
+            }
+        }
+
+        function checkXTaskStatus() {
+            if (!userAddress) return;
+            if (localStorage.getItem(`ctm_xtask_${userAddress}`) === "true") {
+                markXTaskCompleted();
+            }
+        }
+
         function completeXTask(btnElement, pts, url) {
+            if (!userAddress) return;
             window.open(url, '_blank');
-            btnElement.innerText = currentLang === 'tr' ? "✓ Tamamlandı" : "✓ Completed";
-            btnElement.className = "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-[10px] font-bold cursor-not-allowed";
-            btnElement.disabled = true;
+            localStorage.setItem(`ctm_xtask_${userAddress}`, "true");
+            markXTaskCompleted();
             alert(currentLang === 'tr' ? `🎉 X sayfasına yönlendirildiniz! Görev Tamamlandı! +${pts} Puan eklendi.` : `🎉 Redirected to X! Quest Completed! +${pts} Points added.`);
         }
 
@@ -614,6 +617,7 @@
                     await updateBalance();
                     await checkNftStatus();
                     await checkTask2Status();
+                    checkXTaskStatus();
                 } catch (err) {
                     alert("MetaMask Error: " + err.message);
                 }
@@ -677,6 +681,7 @@
                 }
 
                 await checkTask2Status();
+                checkXTaskStatus();
             } catch (err) {
                 console.error("Balance read error:", err);
             }
@@ -835,7 +840,7 @@
                 statusBox.innerText = currentLang === 'tr' ? `🎉 TEBRİKLER! OG Pioneer NFT Başarıyla Mint Edildi!\nTx: ${tx.hash}` : `🎉 SUCCESS! OG Pioneer NFT Minted Successfully!\nTx: ${tx.hash}`;
 
                 mintBtn.innerText = currentLang === 'tr' ? "✓ OG Pioneer NFT Cüzdanınızda" : "✓ OG Pioneer NFT Claimed";
-                mintBtn.className = "w-full bg-emerald-600 text-white font-bold py-2.5 text-xs rounded-xl opacity-90 cursor-not-allowed";
+                mintBtn.className = "w-full bg-emerald-600 text-white font-bold py.5 text-xs rounded-xl opacity-90 cursor-not-allowed";
             } catch (err) {
                 console.error("NFT Mint Error:", err);
                 statusBox.classList.remove('hidden', 'bg-amber-900/30', 'text-amber-300');
