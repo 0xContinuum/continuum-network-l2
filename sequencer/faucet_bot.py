@@ -43,7 +43,7 @@ contract = w3.eth.contract(address=Web3.to_checksum_address(CONTRACT_ADDRESS), a
 user_cooldowns = {}
 address_cooldowns = {}
 
-# --- REFERRAL, GAME & LEADERBOARD DATA ENGINE ---
+# --- REFERRAL, GAME & DATA ENGINE ---
 DATA_FILE = "referrals.json"
 
 def load_ref_data():
@@ -79,22 +79,7 @@ class PaymasterRelayerHandler(BaseHTTPRequestHandler):
         parsed_url = urlparse(self.path)
         query_params = parse_qs(parsed_url.query)
 
-        if parsed_url.path == "/api/leaderboard":
-            data = load_ref_data()
-            users = data.get("users", {})
-            leaderboard = []
-            for uid, info in users.items():
-                leaderboard.append({
-                    "user_id": uid,
-                    "username": info.get("username", "Anonim"),
-                    "points": info.get("points", 0),
-                    "referrals": info.get("referrals_count", 0)
-                })
-            leaderboard.sort(key=lambda x: x["points"], reverse=True)
-            self._set_headers(200)
-            self.wfile.write(json.dumps({"success": True, "leaderboard": leaderboard[:100]}).encode())
-
-        elif parsed_url.path == "/api/user-info":
+        if parsed_url.path == "/api/user-info":
             user_id = query_params.get("user_id", [None])[0]
             db = load_ref_data()
             users = db.get("users", {})
@@ -206,6 +191,64 @@ class PaymasterRelayerHandler(BaseHTTPRequestHandler):
                 self._set_headers(500)
                 self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode())
 
+        elif self.path == "/api/daily-checkin":
+            try:
+                data = json.loads(post_data.decode('utf-8'))
+                tg_id = str(data.get("user_id"))
+                db = load_ref_data()
+                users = db.get("users", {})
+
+                if tg_id in users:
+                    now = datetime.now()
+                    last_checkin = users[tg_id].get("last_checkin", "")
+                    if last_checkin:
+                        dt_last = datetime.fromisoformat(last_checkin)
+                        if now - dt_last < timedelta(hours=24):
+                            self._set_headers(400)
+                            self.wfile.write(json.dumps({"success": False, "error": "Günlük check-in hakkını kullandın (24 saatte bir)."}).encode())
+                            return
+
+                    users[tg_id]["points"] = users[tg_id].get("points", 0) + 50
+                    users[tg_id]["last_checkin"] = now.isoformat()
+                    save_ref_data(db)
+                    self._set_headers(200)
+                    self.wfile.write(json.dumps({"success": True, "message": "Günlük Check-In Başarılı! +50 Puan", "new_points": users[tg_id]["points"]}).encode())
+                else:
+                    self._set_headers(404)
+                    self.wfile.write(json.dumps({"success": False, "error": "Kullanıcı bulunamadı."}).encode())
+            except Exception as e:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode())
+
+        elif self.path == "/api/weekly-claim":
+            try:
+                data = json.loads(post_data.decode('utf-8'))
+                tg_id = str(data.get("user_id"))
+                db = load_ref_data()
+                users = db.get("users", {})
+
+                if tg_id in users:
+                    now = datetime.now()
+                    last_weekly = users[tg_id].get("last_weekly", "")
+                    if last_weekly:
+                        dt_last = datetime.fromisoformat(last_weekly)
+                        if now - dt_last < timedelta(days=7):
+                            self._set_headers(400)
+                            self.wfile.write(json.dumps({"success": False, "error": "Haftalık ödülünü zaten aldın (7 günde bir)."}).encode())
+                            return
+
+                    users[tg_id]["points"] = users[tg_id].get("points", 0) + 400
+                    users[tg_id]["last_weekly"] = now.isoformat()
+                    save_ref_data(db)
+                    self._set_headers(200)
+                    self.wfile.write(json.dumps({"success": True, "message": "Haftalık Sadakat Ödülü Alındı! +400 Puan", "new_points": users[tg_id]["points"]}).encode())
+                else:
+                    self._set_headers(404)
+                    self.wfile.write(json.dumps({"success": False, "error": "Kullanıcı bulunamadı."}).encode())
+            except Exception as e:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode())
+
         elif self.path == "/api/send-chest":
             try:
                 data = json.loads(post_data.decode('utf-8'))
@@ -215,38 +258,23 @@ class PaymasterRelayerHandler(BaseHTTPRequestHandler):
                 db = load_ref_data()
                 users = db.get("users", {})
 
-                # 24 Saatlik Şans Sandığı Cooldown Kontrolü
                 if sender_id in users:
                     now = datetime.now()
                     last_chest_str = users[sender_id].get("last_chest", "")
-                    
-                    can_open = True
-                    if last_chest_str:
-                        last_chest = datetime.fromisoformat(last_chest_str)
-                        if now - last_chest < timedelta(hours=24):
-                            can_open = False
-
-                    if not can_open:
+                    if last_chest_str and now - datetime.fromisoformat(last_chest_str) < timedelta(hours=24):
                         self._set_headers(400)
-                        self.wfile.write(json.dumps({
-                            "success": False, 
-                            "error": "⏳ Günlük şans sandığı hakkını kullandın! 24 saatte bir açabilirsin."
-                        }).encode())
+                        self.wfile.write(json.dumps({"success": False, "error": "⏳ Günlük şans sandığı hakkını kullandın!"}).encode())
                         return
                 else:
                     self._set_headers(404)
                     self.wfile.write(json.dumps({"success": False, "error": "Kullanıcı bulunamadı."}).encode())
                     return
 
-                # 100 CTM Bakiye Kontrolü
                 if user_address:
                     bal = contract.functions.balanceOf(Web3.to_checksum_address(user_address)).call() / (10**18)
                     if bal < 100:
                         self._set_headers(400)
-                        self.wfile.write(json.dumps({
-                            "success": False, 
-                            "error": "Şans sandığı açabilmek için cüzdanınızda en az 100 $CTM olmalıdır!"
-                        }).encode())
+                        self.wfile.write(json.dumps({"success": False, "error": "En az 100 $CTM olmalıdır!"}).encode())
                         return
 
                 reward = random.randint(25, 300)
@@ -255,11 +283,7 @@ class PaymasterRelayerHandler(BaseHTTPRequestHandler):
                 save_ref_data(db)
 
                 self._set_headers(200)
-                self.wfile.write(json.dumps({
-                    "success": True, 
-                    "message": f"🎁 Şans Sandığı Başarıyla Açıldı! +{reward} Puan Kazandınız!",
-                    "new_points": users[sender_id]["points"]
-                }).encode())
+                self.wfile.write(json.dumps({"success": True, "message": f"🎁 Şans Sandığı Açıldı! +{reward} Puan", "new_points": users[sender_id]["points"]}).encode())
             except Exception as e:
                 self._set_headers(500)
                 self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode())
@@ -270,20 +294,17 @@ class PaymasterRelayerHandler(BaseHTTPRequestHandler):
                 user_address = Web3.to_checksum_address(data.get("userAddress"))
 
                 sender_balance = contract.functions.balanceOf(user_address).call()
-                sender_ctm = sender_balance / (10**18)
-
-                if sender_ctm < 100:
+                if sender_balance / (10**18) < 100:
                     self._set_headers(400)
-                    self.wfile.write(json.dumps({"success": False, "error": "Paymaster gaz desteği için cüzdanınızda en az 100 $CTM bulunmalıdır!"}).encode())
+                    self.wfile.write(json.dumps({"success": False, "error": "En az 100 $CTM gerekli."}).encode())
                     return
 
                 if not PAYMASTER_PRIVATE_KEY:
                     self._set_headers(500)
-                    self.wfile.write(json.dumps({"success": False, "error": "Sunucuda Paymaster Private Key tanımlı değil."}).encode())
+                    self.wfile.write(json.dumps({"success": False, "error": "Paymaster Key yok."}).encode())
                     return
 
                 user_eth_balance = w3.eth.get_balance(user_address)
-                
                 if user_eth_balance < w3.to_wei(0.0003, 'ether'):
                     paymaster_account = w3.eth.account.from_key(PAYMASTER_PRIVATE_KEY)
                     nonce = w3.eth.get_transaction_count(paymaster_account.address, 'pending')
@@ -359,12 +380,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     welcome_text = (
         "⚡ <b>Continuum Network ($CTM) Testnet & Game Hub</b>\n\n"
-        "Welcome to Continuum L2 Ecosystem! Tap to farm $CTM Points, complete X tasks, send Mystery Chests, and climb the Leaderboard!\n\n"
+        "Welcome to Continuum L2 Ecosystem! Tap to farm $CTM Points, complete X tasks, send Mystery Chests, and check-in daily!\n\n"
         f"🎁 <b>Your Referral Link:</b>\n<code>{ref_link}</code>\n\n"
         f"📊 <b>Your Points:</b> {users[tg_user_id]['points']} PTS | <b>Referrals:</b> {users[tg_user_id]['referrals_count']}\n\n"
         f"📢 <b>Join Channel:</b> <a href='{CHANNEL_LINK}'>{CHANNEL_LINK}</a>\n"
-        "📌 <b>Command:</b> <code>/faucet &lt;YOUR_WALLET_ADDRESS&gt;</code>\n"
-        "🏆 <b>Leaderboard:</b> <code>/leaderboard</code>"
+        "📌 <b>Command:</b> <code>/faucet &lt;YOUR_WALLET_ADDRESS&gt;</code>"
     )
     await update.message.reply_text(welcome_text, parse_mode="HTML", disable_web_page_preview=True)
 
@@ -384,18 +404,6 @@ async def referral(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "💡 <i>Earn +50 Points for every friend who joins via your link!</i>"
     )
     await update.message.reply_text(msg, parse_mode="HTML", disable_web_page_preview=True)
-
-async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    db = load_ref_data()
-    users = db.get("users", {})
-    sorted_users = sorted(users.items(), key=lambda x: x[1].get("points", 0), reverse=True)[:10]
-
-    msg = "🏆 <b>Continuum Network — Top 10 Leaderboard</b>\n\n"
-    for idx, (uid, info) in enumerate(sorted_users, 1):
-        medal = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else f"{idx}."
-        msg += f"{medal} <b>@{info.get('username', 'Anonim')}</b> — {info.get('points', 0)} PTS ({info.get('referrals_count', 0)} Refs)\n"
-
-    await update.message.reply_text(msg, parse_mode="HTML")
 
 def execute_transfer_sync(user_address: str, amount: int):
     faucet_account = w3.eth.account.from_key(PAYMASTER_PRIVATE_KEY)
@@ -515,7 +523,6 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("faucet", faucet))
     app.add_handler(CommandHandler("referral", referral))
-    app.add_handler(CommandHandler("leaderboard", leaderboard))
     print("🤖 Faucet Bot, Game Hub & Paymaster Relayer aktif...")
     app.run_polling()
 
