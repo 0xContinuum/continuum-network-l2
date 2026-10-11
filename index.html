@@ -141,7 +141,7 @@
                         <span>𝕏</span>
                         <a href="https://x.com/ContinuumL2" target="_blank" class="text-slate-200 hover:underline" data-i18n="taskFollowX">Follow @ContinuumL2 on X</a>
                     </div>
-                    <button onclick="completeXTask(this, 100)" id="xTask1Btn" class="bg-purple-600/20 text-purple-400 border border-purple-500/30 px-2 py-1 rounded text-[10px] font-bold hover:bg-purple-600/40">
+                    <button onclick="completeXTask(this, 100, 'https://x.com/ContinuumL2')" id="xTask1Btn" class="bg-purple-600/20 text-purple-400 border border-purple-500/30 px-2 py-1 rounded text-[10px] font-bold hover:bg-purple-600/40">
                         +100 PTS
                     </button>
                 </div>
@@ -151,7 +151,7 @@
                         <span>💬</span>
                         <a href="https://x.com/ContinuumL2" target="_blank" class="text-slate-200 hover:underline" data-i18n="taskLikeRt">Like & Retweet Last Post</a>
                     </div>
-                    <button onclick="completeXTask(this, 50)" id="xTask2Btn" class="bg-purple-600/20 text-purple-400 border border-purple-500/30 px-2 py-1 rounded text-[10px] font-bold hover:bg-purple-600/40">
+                    <button onclick="completeXTask(this, 50, 'https://x.com/ContinuumL2')" id="xTask2Btn" class="bg-purple-600/20 text-purple-400 border border-purple-500/30 px-2 py-1 rounded text-[10px] font-bold hover:bg-purple-600/40">
                         +50 PTS
                     </button>
                 </div>
@@ -174,12 +174,9 @@
                 Invite friends with your unique link! Earn **+50 Points** for every friend and track your invited friends below.
             </p>
 
-            <div class="flex gap-2">
-                <button onclick="copyRefLink()" id="copyRefBtn" class="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-2 text-xs rounded-xl transition shadow-lg shadow-blue-500/20">
+            <div>
+                <button onclick="copyRefLink()" id="copyRefBtn" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-2.5 text-xs rounded-xl transition shadow-lg shadow-blue-500/20">
                     🔗 Copy My Invite Link
-                </button>
-                <button onclick="fetchLeaderboard()" id="leaderboardBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-3 py-2 text-xs rounded-xl border border-slate-700">
-                    📊 Leaderboard
                 </button>
             </div>
 
@@ -189,11 +186,6 @@
                 <div id="friendsList" class="space-y-1.5 font-mono text-[11px] text-slate-300 max-h-36 overflow-y-auto">
                     Loading...
                 </div>
-            </div>
-
-            <div id="leaderboardBox" class="hidden p-3 bg-slate-950/80 rounded-xl border border-slate-800 space-y-2 text-xs">
-                <div class="font-bold text-amber-400 text-[11px] border-b border-slate-800 pb-1" data-i18n="top10Title">🏆 Top 10 Champions</div>
-                <div id="leaderboardList" class="space-y-1 font-mono text-[11px] text-slate-300">Loading...</div>
             </div>
         </div>
 
@@ -323,9 +315,7 @@
                 refCardTitle: "Referral & My Friends",
                 refCardDesc: "Invite friends with your unique link! Earn **+50 Points** for every friend and track your invited friends below.",
                 copyRefLink: "🔗 Copy My Invite Link",
-                leaderboardBtn: "📊 Leaderboard",
                 myFriendsTitle: "👥 My Invited Friends",
-                top10Title: "🏆 Top 10 Champions",
                 nftCardTitle: "OG Pioneer NFT & Quest Portal",
                 nftCardDesc: "Complete quests and mint your soulbound <strong class='text-amber-400'>OG Pioneer NFT</strong>! Enter the **Top 100** during testnet for a transferable Genesis NFT & Mainnet Airdrop.",
                 quest1: "Claim $CTM from Faucet",
@@ -359,9 +349,7 @@
                 refCardTitle: "Referral & Arkadaşlarım",
                 refCardDesc: "Arkadaşlarını özel linkinle davet et! Her katılım için **+50 Puan** kazan ve aşağıda arkadaş listeni takip et.",
                 copyRefLink: "🔗 Davet Linkimi Kopyala",
-                leaderboardBtn: "📊 Liderlik Tablosu",
                 myFriendsTitle: "👥 Davet Ettiğim Arkadaşlarım",
-                top10Title: "🏆 Top 10 Şampiyonlar",
                 nftCardTitle: "OG Pioneer NFT & Quest Portal",
                 nftCardDesc: "Görevleri tamamla, devredilemez <strong class='text-amber-400'>OG Pioneer Soulbound NFT</strong>'ni mint et! Mainnet açılışında **Top 100** arasına girerek transfer edilebilir **Genesis NFT & Airdrop** hakkı kazan.",
                 quest1: "Faucet'ten $CTM Talep Et",
@@ -403,14 +391,12 @@
             if(lang === 'tr') {
                 document.getElementById("farmBtn").innerText = "⚡ Farming Başlat (+100 PTS)";
                 document.getElementById("copyRefBtn").innerText = "🔗 Davet Linkimi Kopyala";
-                document.getElementById("leaderboardBtn").innerText = "📊 Liderlik Tablosu";
                 document.getElementById("chestBtn").innerText = "🎁 Şans Sandığını Aç & Puan Topla";
                 document.getElementById("mintNftBtn").innerText = "✨ OG Pioneer NFT Mint Et (Gasless)";
                 document.getElementById("transferBtn").innerText = "Transferi Onayla";
             } else {
                 document.getElementById("farmBtn").innerText = "⚡ Start Farming (+100 PTS)";
                 document.getElementById("copyRefBtn").innerText = "🔗 Copy My Invite Link";
-                document.getElementById("leaderboardBtn").innerText = "📊 Leaderboard";
                 document.getElementById("chestBtn").innerText = "🎁 Open Mystery Chest & Claim Points";
                 document.getElementById("mintNftBtn").innerText = "✨ Mint OG Pioneer NFT (Gasless)";
                 document.getElementById("transferBtn").innerText = "Confirm Transfer";
@@ -444,7 +430,7 @@
         }
 
         window.addEventListener('DOMContentLoaded', async () => {
-            setLanguage(currentLang); // Apply initial language
+            setLanguage(currentLang);
             await autoInitWallet();
             await fetchMyFriends();
         });
@@ -598,11 +584,13 @@
             }
         }
 
-        function completeXTask(btnElement, pts) {
+        // X (Twitter) görevlerine tıklandığında önce X'e yönlendirip ardından puanı verir
+        function completeXTask(btnElement, pts, url) {
+            window.open(url, '_blank');
             btnElement.innerText = currentLang === 'tr' ? "✓ Tamamlandı" : "✓ Completed";
             btnElement.className = "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-[10px] font-bold cursor-not-allowed";
             btnElement.disabled = true;
-            alert(currentLang === 'tr' ? `🎉 Görev Tamamlandı! +${pts} Puan hesabınıza eklendi.` : `🎉 Quest Completed! +${pts} Points added to your account.`);
+            alert(currentLang === 'tr' ? `🎉 X sayfasına yönlendirildiniz! Görev Tamamlandı! +${pts} Puan eklendi.` : `🎉 Redirected to X! Quest Completed! +${pts} Points added.`);
         }
 
         function copyRefLink() {
@@ -611,33 +599,6 @@
             const refLink = `https://t.me/ContinuumCTM_bot?start=ref_${uid}`;
             navigator.clipboard.writeText(refLink);
             alert(currentLang === 'tr' ? "🎉 Davet Linkiniz Kopyalandı!\n\n" + refLink : "🎉 Invite Link Copied!\n\n" + refLink);
-        }
-
-        async function fetchLeaderboard() {
-            const box = document.getElementById("leaderboardBox");
-            const list = document.getElementById("leaderboardList");
-            box.classList.toggle("hidden");
-
-            if (!box.classList.contains("hidden")) {
-                list.innerText = currentLang === 'tr' ? "Yükleniyor..." : "Loading...";
-                try {
-                    const res = await fetch(`${API_BASE_URL}/api/leaderboard`);
-                    const data = await res.json();
-                    if (data.success && data.leaderboard.length > 0) {
-                        list.innerHTML = data.leaderboard.map((item, idx) => {
-                            const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx+1}.`;
-                            return `<div class="flex justify-between py-0.5 border-b border-slate-900">
-                                <span>${medal} @${item.username}</span>
-                                <span class="text-purple-400 font-bold">${item.points} PTS (${item.referrals} Ref)</span>
-                            </div>`;
-                        }).join('');
-                    } else {
-                        list.innerText = currentLang === 'tr' ? "Henüz sıralama verisi bulunmuyor." : "No leaderboard data yet.";
-                    }
-                } catch (err) {
-                    list.innerText = currentLang === 'tr' ? "Liderlik verisi çekilemedi." : "Failed to load leaderboard.";
-                }
-            }
         }
 
         async function connectWallet() {
