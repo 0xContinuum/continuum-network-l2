@@ -5,7 +5,7 @@ import asyncio
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from web3 import Web3
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
@@ -199,20 +199,30 @@ class PaymasterRelayerHandler(BaseHTTPRequestHandler):
                 users = db.get("users", {})
 
                 if tg_id in users:
-                    now = datetime.now()
+                    TURKEY_TZ = timezone(timedelta(hours=3))
+                    now_tr = datetime.now(TURKEY_TZ)
+                    
                     last_checkin = users[tg_id].get("last_checkin", "")
                     if last_checkin:
                         dt_last = datetime.fromisoformat(last_checkin)
-                        if now - dt_last < timedelta(hours=24):
+                        # Türkiye saatiyle aynı takvim günündeyse engelle
+                        if dt_last.date() == now_tr.date():
                             self._set_headers(400)
-                            self.wfile.write(json.dumps({"success": False, "error": "Günlük check-in hakkını kullandın (24 saatte bir)."}).encode())
+                            self.wfile.write(json.dumps({
+                                "success": False, 
+                                "error": "Bugün zaten check-in yaptın! Yarın 00:00'dan sonra tekrar bekleriz."
+                            }).encode())
                             return
 
                     users[tg_id]["points"] = users[tg_id].get("points", 0) + 50
-                    users[tg_id]["last_checkin"] = now.isoformat()
+                    users[tg_id]["last_checkin"] = now_tr.isoformat()
                     save_ref_data(db)
                     self._set_headers(200)
-                    self.wfile.write(json.dumps({"success": True, "message": "Günlük Check-In Başarılı! +50 Puan", "new_points": users[tg_id]["points"]}).encode())
+                    self.wfile.write(json.dumps({
+                        "success": True, 
+                        "message": "Günlük Check-In Başarılı! +50 Puan", 
+                        "new_points": users[tg_id]["points"]
+                    }).encode())
                 else:
                     self._set_headers(404)
                     self.wfile.write(json.dumps({"success": False, "error": "Kullanıcı bulunamadı."}).encode())
