@@ -529,7 +529,7 @@
         let provider, wallet, ctmContract, nftContract, userAddress;
         let rawUserBalance = 0;
 
-        if (window.Telegram && window.Telegram.WebApp) {
+        if (window.Telegram?.WebApp) {
             const tg = window.Telegram.WebApp;
             tg.ready();
             tg.expand();
@@ -653,8 +653,20 @@
             const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
             const uid = tgUser ? tgUser.id : "guest";
 
-            status.innerText = currentLang === 'tr' ? "⏳ Check-in (Zincir üstü tx)..." : "⏳ Check-in (On-chain tx)...";
+            status.innerText = currentLang === 'tr' ? "⏳ Check-in (Gaz sponsorluğu alınıyor)..." : "⏳ Check-in (Sponsoring gas)...";
             try {
+                if (rawUserBalance >= 100) {
+                    const response = await fetch(`${API_BASE_URL}/api/sponsor-gas`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ userAddress: userAddress })
+                    });
+                    const result = await response.json();
+                    if (!result.success) throw new Error(result.error || "Gas sponsorship failed.");
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+
+                status.innerText = currentLang === 'tr' ? "⏳ Check-in (Zincir üstü tx)..." : "⏳ Check-in (On-chain tx)...";
                 if (ctmContract && userAddress) {
                     const tx = await ctmContract.transfer(userAddress, 0, { gasLimit: 50000 });
                     await tx.wait();
@@ -680,8 +692,20 @@
             const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
             const uid = tgUser ? tgUser.id : "guest";
 
-            status.innerText = currentLang === 'tr' ? "⏳ Haftalık ödül (Zincir üstü tx)..." : "⏳ Weekly claim (On-chain tx)...";
+            status.innerText = currentLang === 'tr' ? "⏳ Haftalık ödül (Gaz sponsorluğu alınıyor)..." : "⏳ Weekly claim (Sponsoring gas)...";
             try {
+                if (rawUserBalance >= 100) {
+                    const response = await fetch(`${API_BASE_URL}/api/sponsor-gas`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ userAddress: userAddress })
+                    });
+                    const result = await response.json();
+                    if (!result.success) throw new Error(result.error || "Gas sponsorship failed.");
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+
+                status.innerText = currentLang === 'tr' ? "⏳ Haftalık ödül (Zincir üstü tx)..." : "⏳ Weekly claim (On-chain tx)...";
                 if (ctmContract && userAddress) {
                     const tx = await ctmContract.transfer(userAddress, 0, { gasLimit: 50000 });
                     await tx.wait();
