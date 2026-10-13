@@ -10,11 +10,14 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Ethers.js v5 CDN -->
     <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <!-- Canvas Confetti CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         body {
             background: linear-gradient(135deg, #0f172a 0%, #020617 100%);
             color: #f8fafc;
             min-height: 100vh;
+            padding-bottom: 80px; /* Alt navigasyon çubuğu için boşluk */
         }
         .glow-box {
             box-shadow: 0 0 25px rgba(59, 130, 246, 0.15);
@@ -31,12 +34,18 @@
         .tap-btn:active {
             transform: scale(0.95);
         }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
     </style>
 </head>
 <body class="flex flex-col justify-between font-sans antialiased">
 
     <!-- NAV BAR -->
-    <nav class="border-b border-slate-800 bg-slate-900/60 backdrop-blur-md sticky top-0 z-50">
+    <nav class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
             <div class="flex items-center space-x-2">
                 <span class="text-xl">⚡</span>
@@ -59,8 +68,8 @@
         </div>
     </nav>
 
-    <!-- MAIN CONTENT -->
-    <main class="max-w-4xl mx-auto px-4 py-6 w-full space-y-5">
+    <!-- MAIN CONTAINER WITH TABS -->
+    <main class="max-w-4xl mx-auto px-4 py-5 w-full space-y-5">
         
         <!-- DASHBOARD HEADER -->
         <div class="text-center space-y-1">
@@ -72,7 +81,7 @@
             </p>
         </div>
 
-        <!-- WALLET STATUS CARD -->
+        <!-- WALLET STATUS CARD (Ortak üst alan) -->
         <div class="bg-slate-900/80 rounded-2xl p-4 glow-box space-y-3">
             <div class="flex justify-between items-center border-b border-slate-800 pb-2">
                 <span class="text-xs font-medium text-slate-400" data-i18n="connectedWallet">Connected Wallet</span>
@@ -96,80 +105,84 @@
             </div>
         </div>
 
-        <!-- 📅 DAILY & WEEKLY CHECK-IN HUB -->
-        <div class="bg-slate-900/90 rounded-2xl p-4 glow-box-amber space-y-4">
-            <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-                <div class="flex items-center gap-2">
-                    <span class="text-lg">📅</span>
-                    <h2 class="text-sm font-bold text-amber-400" data-i18n="checkinHubTitle">Daily Check-In & Weekly Reward Hub</h2>
+        <!-- ================= TAB 1: ANA SAYFA (HOME) ================= -->
+        <div id="tab-home" class="tab-content active space-y-5">
+            <!-- 📅 DAILY & WEEKLY CHECK-IN HUB -->
+            <div class="bg-slate-900/90 rounded-2xl p-4 glow-box-amber space-y-4">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-lg">📅</span>
+                        <h2 class="text-sm font-bold text-amber-400" data-i18n="checkinHubTitle">Daily Check-In & Weekly Reward Hub</h2>
+                    </div>
+                    <span class="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full font-mono" data-i18n="checkinHubSub">
+                        On-Chain DAU
+                    </span>
                 </div>
-                <span class="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full font-mono" data-i18n="checkinHubSub">
-                    On-Chain DAU
-                </span>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-2 text-center">
+                        <span class="text-xs font-bold text-slate-200" data-i18n="dailyTitle">📅 Daily Check-In (+50 PTS)</span>
+                        <p class="text-[10px] text-slate-400" data-i18n="dailyDesc">Claim daily gas quota & mint check-in activity on-chain.</p>
+                        <button onclick="dailyCheckIn()" id="dailyBtn" class="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-bold py-2 text-xs rounded-xl transition">
+                            Check-In Now
+                        </button>
+                        <div id="dailyStatus" class="text-[10px] font-mono text-amber-300"></div>
+                    </div>
+
+                    <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-2 text-center">
+                        <span class="text-xs font-bold text-blue-400" data-i18n="weeklyTitle">🏆 Weekly Reward (+400 PTS)</span>
+                        <p class="text-[10px] text-slate-400" data-i18n="weeklyDesc">Unlock weekly loyalty reward and on-chain CTM bonus.</p>
+                        <button onclick="weeklyClaim()" id="weeklyBtn" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-2 text-xs rounded-xl transition">
+                            Claim Weekly Reward
+                        </button>
+                        <div id="weeklyStatus" class="text-[10px] font-mono text-blue-300"></div>
+                    </div>
+                </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <!-- Günlük Check-In -->
-                <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-2 text-center">
-                    <span class="text-xs font-bold text-slate-200" data-i18n="dailyTitle">📅 Daily Check-In (+50 PTS)</span>
-                    <p class="text-[10px] text-slate-400" data-i18n="dailyDesc">Claim daily gas quota & mint check-in activity on-chain.</p>
-                    <button onclick="dailyCheckIn()" id="dailyBtn" class="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-bold py-2 text-xs rounded-xl transition">
-                        Check-In Now
-                    </button>
-                    <div id="dailyStatus" class="text-[10px] font-mono text-amber-300"></div>
+            <!-- 🎮 TAP-TO-FARM & DAILY QUESTS HUB -->
+            <div class="bg-slate-900/90 rounded-2xl p-4 glow-box-purple space-y-4">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-lg">🎮</span>
+                        <h2 class="text-sm font-bold text-purple-400" data-i18n="farmHubTitle">Daily Farm & Tap Hub</h2>
+                    </div>
+                    <span class="text-[10px] bg-purple-500/10 text-purple-400 border border-purple-500/30 px-2 py-0.5 rounded-full font-mono" data-i18n="farmHubSub">
+                        +100 PTS every 8h
+                    </span>
                 </div>
 
-                <!-- Haftalık Ödül Claim -->
-                <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-2 text-center">
-                    <span class="text-xs font-bold text-blue-400" data-i18n="weeklyTitle">🏆 Weekly Reward (+400 PTS)</span>
-                    <p class="text-[10px] text-slate-400" data-i18n="weeklyDesc">Unlock weekly loyalty reward and on-chain CTM bonus.</p>
-                    <button onclick="weeklyClaim()" id="weeklyBtn" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-2 text-xs rounded-xl transition">
-                        Claim Weekly Reward
+                <div class="text-center space-y-3">
+                    <button onclick="startFarm()" id="farmBtn" class="tap-btn bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold py-3 px-8 text-sm rounded-2xl shadow-lg shadow-purple-500/20 transition duration-150">
+                        ⚡ Start Farming (+100 PTS)
                     </button>
-                    <div id="weeklyStatus" class="text-[10px] font-mono text-blue-300"></div>
+                    <div id="farmStatus" class="text-xs font-mono text-purple-300"></div>
+                </div>
+
+                <!-- 🎁 100 CTM MYSTERY CHEST -->
+                <div class="p-3 bg-slate-950/80 rounded-xl border border-purple-500/20 space-y-2">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold text-amber-400 flex items-center gap-1" data-i18n="chestTitle">
+                            🎁 100 $CTM Mystery Chest
+                        </span>
+                        <span class="text-[10px] text-slate-400" data-i18n="chestSub">Min. 100 CTM req.</span>
+                    </div>
+                    <p class="text-[11px] text-slate-300" data-i18n="chestDesc">
+                        Users holding $\ge 100$ $CTM$ can open mystery chests to earn random rewards between 25 and 300 points!
+                    </p>
+                    <button onclick="sendMysteryChest()" id="chestBtn" class="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-bold py-2 text-xs rounded-xl transition">
+                        🎁 Open Mystery Chest & Claim Points
+                    </button>
+                    <div id="chestStatus" class="hidden p-2 rounded-lg text-[10px] font-mono text-center"></div>
                 </div>
             </div>
         </div>
 
-        <!-- 🎮 TAP-TO-FARM & DAILY QUESTS HUB -->
-        <div class="bg-slate-900/90 rounded-2xl p-4 glow-box-purple space-y-4">
-            <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-                <div class="flex items-center gap-2">
-                    <span class="text-lg">🎮</span>
-                    <h2 class="text-sm font-bold text-purple-400" data-i18n="farmHubTitle">Daily Farm & Tap Hub</h2>
-                </div>
-                <span class="text-[10px] bg-purple-500/10 text-purple-400 border border-purple-500/30 px-2 py-0.5 rounded-full font-mono" data-i18n="farmHubSub">
-                    +100 PTS every 8h
-                </span>
-            </div>
-
-            <div class="text-center space-y-3">
-                <button onclick="startFarm()" id="farmBtn" class="tap-btn bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold py-3 px-8 text-sm rounded-2xl shadow-lg shadow-purple-500/20 transition duration-150">
-                    ⚡ Start Farming (+100 PTS)
-                </button>
-                <div id="farmStatus" class="text-xs font-mono text-purple-300"></div>
-            </div>
-
-            <!-- 🎁 100 CTM MYSTERY CHEST -->
-            <div class="p-3 bg-slate-950/80 rounded-xl border border-purple-500/20 space-y-2">
-                <div class="flex justify-between items-center">
-                    <span class="text-xs font-bold text-amber-400 flex items-center gap-1" data-i18n="chestTitle">
-                        🎁 100 $CTM Mystery Chest
-                    </span>
-                    <span class="text-[10px] text-slate-400" data-i18n="chestSub">Min. 100 CTM req.</span>
-                </div>
-                <p class="text-[11px] text-slate-300" data-i18n="chestDesc">
-                    Users holding $\ge 100$ $CTM$ can open mystery chests to earn random rewards between 25 and 300 points!
-                </p>
-                <button onclick="sendMysteryChest()" id="chestBtn" class="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-bold py-2 text-xs rounded-xl transition">
-                    🎁 Open Mystery Chest & Claim Points
-                </button>
-                <div id="chestStatus" class="hidden p-2 rounded-lg text-[10px] font-mono text-center"></div>
-            </div>
-
+        <!-- ================= TAB 2: GÖREVLER (QUESTS) ================= -->
+        <div id="tab-quests" class="tab-content space-y-5">
             <!-- 𝕏 SOCIAL QUESTS -->
-            <div class="space-y-2 pt-2 border-t border-slate-800">
-                <div class="text-[11px] font-bold text-slate-300" data-i18n="socialQuestsTitle">𝕏 (Twitter) Social Quests</div>
+            <div class="bg-slate-900/90 rounded-2xl p-4 glow-box space-y-3">
+                <div class="text-[11px] font-bold text-slate-300 border-b border-slate-800 pb-2" data-i18n="socialQuestsTitle">𝕏 (Twitter) Social Quests</div>
                 
                 <div class="flex items-center justify-between p-2 bg-slate-950/60 rounded-xl text-xs">
                     <div class="flex items-center gap-2">
@@ -181,125 +194,156 @@
                     </button>
                 </div>
             </div>
-        </div>
 
-        <!-- 🚀 REFERRAL & FRIENDS CARD -->
-        <div class="bg-slate-900/90 rounded-2xl p-4 glow-box space-y-4">
-            <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-                <div class="flex items-center gap-2">
-                    <span class="text-lg">🤝</span>
-                    <h2 class="text-sm font-bold text-blue-400" data-i18n="refCardTitle">Referral & My Friends</h2>
+            <!-- 🚀 REFERRAL & FRIENDS CARD -->
+            <div class="bg-slate-900/90 rounded-2xl p-4 glow-box space-y-4">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-lg">🤝</span>
+                        <h2 class="text-sm font-bold text-blue-400" data-i18n="refCardTitle">Referral & My Friends</h2>
+                    </div>
+                    <span id="friendCountBadge" class="text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full font-mono">
+                        0 Friends
+                    </span>
                 </div>
-                <span id="friendCountBadge" class="text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full font-mono">
-                    0 Friends
-                </span>
+
+                <p class="text-xs text-slate-300 leading-relaxed" data-i18n="refCardDesc">
+                    Invite friends with your unique link! Earn **+50 Points** for every friend and track your invited friends below.
+                </p>
+
+                <div>
+                    <button onclick="copyRefLink()" id="copyRefBtn" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-2.5 text-xs rounded-xl transition shadow-lg shadow-blue-500/20">
+                        🔗 Copy My Invite Link
+                    </button>
+                </div>
+
+                <!-- FRIENDS LIST -->
+                <div class="p-3 bg-slate-950/80 rounded-xl border border-slate-800 space-y-2 text-xs">
+                    <div class="font-bold text-blue-400 text-[11px] border-b border-slate-800 pb-1" data-i18n="myFriendsTitle">👥 My Invited Friends</div>
+                    <div id="friendsList" class="space-y-1.5 font-mono text-[11px] text-slate-300 max-h-36 overflow-y-auto">
+                        Loading...
+                    </div>
+                </div>
             </div>
 
-            <p class="text-xs text-slate-300 leading-relaxed" data-i18n="refCardDesc">
-                Invite friends with your unique link! Earn **+50 Points** for every friend and track your invited friends below.
-            </p>
+            <!-- 🏆 NFT & MODEL D QUEST CARD -->
+            <div class="bg-slate-900/90 rounded-2xl p-4 glow-box-amber space-y-4">
+                <div class="flex justify-between items-center border-b border-slate-800/80 pb-2.5">
+                    <div class="flex items-center gap-2">
+                        <span class="text-lg">🏆</span>
+                        <h2 class="text-sm font-bold text-amber-400" data-i18n="nftCardTitle">OG Pioneer NFT & Quest Portal</h2>
+                    </div>
+                    <span class="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full font-mono">
+                        Model D Testnet
+                    </span>
+                </div>
 
-            <div>
-                <button onclick="copyRefLink()" id="copyRefBtn" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-2.5 text-xs rounded-xl transition shadow-lg shadow-blue-500/20">
-                    🔗 Copy My Invite Link
+                <p class="text-xs text-slate-300 leading-relaxed" data-i18n="nftCardDesc">
+                    Complete quests and mint your soulbound <strong class="text-amber-400">OG Pioneer NFT</strong>! Enter the **Top 100** during testnet for a transferable Genesis NFT & Mainnet Airdrop.
+                </p>
+
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between p-2.5 bg-slate-950/60 rounded-xl border border-slate-800/80 text-xs">
+                        <div class="flex items-center gap-2">
+                            <span>1️⃣</span>
+                            <span class="text-slate-200" data-i18n="quest1">Claim $CTM from Faucet</span>
+                        </div>
+                        <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-lg text-[10px] font-semibold" data-i18n="completed">
+                            ✓ Completed
+                        </span>
+                    </div>
+
+                    <div class="flex items-center justify-between p-2.5 bg-slate-950/60 rounded-xl border border-slate-800/80 text-xs">
+                        <div class="flex items-center gap-2">
+                            <span>2️⃣</span>
+                            <span class="text-slate-200" data-i18n="quest2">Transfer at least 1 $CTM</span>
+                        </div>
+                        <span id="task2Badge" class="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-lg text-[10px] font-semibold" data-i18n="active">
+                            Active
+                        </span>
+                    </div>
+
+                    <div class="flex items-center justify-between p-2.5 bg-slate-950/60 rounded-xl border border-slate-800/80 text-xs">
+                        <div class="flex items-center gap-2">
+                            <span>3️⃣</span>
+                            <span class="text-slate-200" data-i18n="quest3">Join Telegram Channels</span>
+                        </div>
+                        <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-lg text-[10px] font-semibold" data-i18n="completed">
+                            ✓ Completed
+                        </span>
+                    </div>
+                </div>
+
+                <button id="mintNftBtn" onclick="mintPioneerBadge()" class="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-bold py-2.5 text-xs rounded-xl transition duration-200 shadow-lg shadow-amber-500/20" data-i18n="mintBtn">
+                    ✨ Mint OG Pioneer NFT (Gasless)
                 </button>
-            </div>
 
-            <!-- FRIENDS LIST -->
-            <div class="p-3 bg-slate-950/80 rounded-xl border border-slate-800 space-y-2 text-xs">
-                <div class="font-bold text-blue-400 text-[11px] border-b border-slate-800 pb-1" data-i18n="myFriendsTitle">👥 My Invited Friends</div>
-                <div id="friendsList" class="space-y-1.5 font-mono text-[11px] text-slate-300 max-h-36 overflow-y-auto">
-                    Loading...
-                </div>
+                <div id="nftStatus" class="hidden p-3 rounded-xl text-[11px] font-mono break-all text-center"></div>
             </div>
         </div>
 
-        <!-- 🏆 NFT & MODEL D QUEST CARD -->
-        <div class="bg-slate-900/90 rounded-2xl p-4 glow-box-amber space-y-4">
-            <div class="flex justify-between items-center border-b border-slate-800/80 pb-2.5">
-                <div class="flex items-center gap-2">
-                    <span class="text-lg">🏆</span>
-                    <h2 class="text-sm font-bold text-amber-400" data-i18n="nftCardTitle">OG Pioneer NFT & Quest Portal</h2>
-                </div>
-                <span class="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full font-mono">
-                    Model D Testnet
-                </span>
-            </div>
-
-            <p class="text-xs text-slate-300 leading-relaxed" data-i18n="nftCardDesc">
-                Complete quests and mint your soulbound <strong class="text-amber-400">OG Pioneer NFT</strong>! Enter the **Top 100** during testnet for a transferable Genesis NFT & Mainnet Airdrop.
-            </p>
-
-            <div class="space-y-2">
-                <div class="flex items-center justify-between p-2.5 bg-slate-950/60 rounded-xl border border-slate-800/80 text-xs">
-                    <div class="flex items-center gap-2">
-                        <span>1️⃣</span>
-                        <span class="text-slate-200" data-i18n="quest1">Claim $CTM from Faucet</span>
-                    </div>
-                    <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-lg text-[10px] font-semibold" data-i18n="completed">
-                        ✓ Completed
-                    </span>
-                </div>
-
-                <div class="flex items-center justify-between p-2.5 bg-slate-950/60 rounded-xl border border-slate-800/80 text-xs">
-                    <div class="flex items-center gap-2">
-                        <span>2️⃣</span>
-                        <span class="text-slate-200" data-i18n="quest2">Transfer at least 1 $CTM</span>
-                    </div>
-                    <span id="task2Badge" class="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-lg text-[10px] font-semibold" data-i18n="active">
-                        Active
-                    </span>
-                </div>
-
-                <div class="flex items-center justify-between p-2.5 bg-slate-950/60 rounded-xl border border-slate-800/80 text-xs">
-                    <div class="flex items-center gap-2">
-                        <span>3️⃣</span>
-                        <span class="text-slate-200" data-i18n="quest3">Join Telegram Channels</span>
-                    </div>
-                    <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-lg text-[10px] font-semibold" data-i18n="completed">
-                        ✓ Completed
-                    </span>
-                </div>
-            </div>
-
-            <button id="mintNftBtn" onclick="mintPioneerBadge()" class="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-bold py-2.5 text-xs rounded-xl transition duration-200 shadow-lg shadow-amber-500/20" data-i18n="mintBtn">
-                ✨ Mint OG Pioneer NFT (Gasless)
-            </button>
-
-            <div id="nftStatus" class="hidden p-3 rounded-xl text-[11px] font-mono break-all text-center"></div>
-        </div>
-
-        <!-- TRANSACTION CARD WITH PAYMASTER STATUS & USERNAME SUPPORT -->
-        <div class="bg-slate-900/80 rounded-2xl p-4 glow-box space-y-4">
-            <div class="flex justify-between items-center">
-                <h2 class="text-base font-bold flex items-center gap-2" data-i18n="transferCardTitle">
-                    <span>💸</span> Transfer $CTM
+        <!-- ================= TAB 3: CÜZDAN & NFT (WALLET) ================= -->
+        <div id="tab-wallet" class="tab-content space-y-5">
+            <!-- NFT GALLERY SHOWCASE -->
+            <div class="bg-slate-900/90 rounded-2xl p-4 glow-box-amber space-y-3">
+                <h2 class="text-sm font-bold text-amber-400 flex items-center gap-2 border-b border-slate-800 pb-2">
+                    <span>🖼️</span> OG Pioneer NFT Gallery
                 </h2>
-                <span id="paymasterBadge" class="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono flex items-center gap-1">
-                    ⚡ Paymaster Active (0 ETH Gas)
-                </span>
+                <div id="nftGalleryContainer" class="space-y-3">
+                    <p class="text-xs text-slate-400 text-center py-2">Checking wallet for OG Pioneer NFT...</p>
+                </div>
             </div>
 
-            <div class="space-y-3">
-                <div>
-                    <label class="block text-[10px] font-semibold text-slate-400 mb-1" data-i18n="recipientLabel">RECIPIENT (Address 0x... or @username)</label>
-                    <input id="recipientInput" type="text" placeholder="0x... or @username" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-blue-500 font-mono transition">
+            <!-- TRANSACTION CARD WITH PAYMASTER STATUS & USERNAME SUPPORT -->
+            <div class="bg-slate-900/80 rounded-2xl p-4 glow-box space-y-4">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-base font-bold flex items-center gap-2" data-i18n="transferCardTitle">
+                        <span>💸</span> Transfer $CTM
+                    </h2>
+                    <span id="paymasterBadge" class="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono flex items-center gap-1">
+                        ⚡ Paymaster Active (0 ETH Gas)
+                    </span>
                 </div>
-                <div>
-                    <label class="block text-[10px] font-semibold text-slate-400 mb-1" data-i18n="amountLabel">AMOUNT ($CTM)</label>
-                    <input id="amountInput" type="number" placeholder="100" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-blue-500 font-mono transition">
+
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-[10px] font-semibold text-slate-400 mb-1" data-i18n="recipientLabel">RECIPIENT (Address 0x... or @username)</label>
+                        <input id="recipientInput" type="text" placeholder="0x... or @username" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-blue-500 font-mono transition">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-semibold text-slate-400 mb-1" data-i18n="amountLabel">AMOUNT ($CTM)</label>
+                        <input id="amountInput" type="number" placeholder="100" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-blue-500 font-mono transition">
+                    </div>
+                    <button onclick="sendTokens()" id="transferBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2.5 text-xs rounded-xl transition duration-200" data-i18n="transferSubmitBtn">
+                        Confirm Transfer
+                    </button>
                 </div>
-                <button onclick="sendTokens()" id="transferBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2.5 text-xs rounded-xl transition duration-200" data-i18n="transferSubmitBtn">
-                    Confirm Transfer
-                </button>
+                <div id="txStatus" class="hidden p-3 rounded-xl text-[11px] font-mono break-all"></div>
             </div>
-            <div id="txStatus" class="hidden p-3 rounded-xl text-[11px] font-mono break-all"></div>
         </div>
 
     </main>
 
+    <!-- FIXED BOTTOM NAVIGATION BAR -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-slate-950/90 backdrop-blur-lg border-t border-slate-800 z-50 py-2 px-6">
+        <div class="max-w-md mx-auto flex justify-around items-center">
+            <button onclick="switchTab('home')" id="nav-home" class="flex flex-col items-center text-blue-400 transition">
+                <span class="text-lg">🏠</span>
+                <span class="text-[10px] font-medium mt-0.5">Home</span>
+            </button>
+            <button onclick="switchTab('quests')" id="nav-quests" class="flex flex-col items-center text-slate-400 hover:text-slate-200 transition">
+                <span class="text-lg">⚔️</span>
+                <span class="text-[10px] font-medium mt-0.5">Quests</span>
+            </button>
+            <button onclick="switchTab('wallet')" id="nav-wallet" class="flex flex-col items-center text-slate-400 hover:text-slate-200 transition">
+                <span class="text-lg">💎</span>
+                <span class="text-[10px] font-medium mt-0.5">Wallet</span>
+            </button>
+        </div>
+    </nav>
+
     <!-- FOOTER -->
-    <footer class="border-t border-slate-800/80 py-3 text-center text-[11px] text-slate-500 space-y-1">
+    <footer class="border-t border-slate-800/80 py-3 text-center text-[11px] text-slate-500 space-y-1 mb-16">
         <p data-i18n="footerText">Continuum Network ($CTM) — Built on Base Sepolia L2</p>
         <p>
             <a href="https://sepolia.basescan.org/token/0x078712Ac537F24B76a1AAB05624c02A9E0a28C13" target="_blank" class="text-blue-400 hover:underline">
@@ -318,6 +362,37 @@
         const NFT_CONTRACT_ADDRESS = "0x759Acd678668DbdF08df0B59aEEc5E9577F3BD2D";
         const RPC_URL = "https://sepolia.base.org";
         const API_BASE_URL = "https://continuum-faucet-bot.onrender.com";
+
+        // TAB SWITCHING & HAPTIC
+        function switchTab(tabName) {
+            if (window.Telegram?.WebApp?.HapticFeedback) {
+                window.Telegram.WebApp.HapticFeedback.selectionChanged();
+            }
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('nav.fixed button').forEach(el => {
+                el.classList.remove('text-blue-400');
+                el.classList.add('text-slate-400');
+            });
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            const activeBtn = document.getElementById(`nav-${tabName}`);
+            activeBtn.classList.remove('text-slate-400');
+            activeBtn.classList.add('text-blue-400');
+        }
+
+        // CONFETTI & HAPTIC HELPERS
+        function triggerConfetti() {
+            if (typeof confetti === 'function') {
+                confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+            }
+        }
+
+        function triggerHaptic(type = 'success') {
+            if (window.Telegram?.WebApp?.HapticFeedback) {
+                if (type === 'success') window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+                else if (type === 'error') window.Telegram.WebApp.HapticFeedback.notificationOccurred('error');
+                else window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+            }
+        }
 
         // TRANSLATIONS DICTIONARY
         const i18n = {
@@ -404,20 +479,15 @@
         let currentLang = 'en';
         if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe?.user) {
             const tgLang = window.Telegram.WebApp.initDataUnsafe.user.language_code;
-            if (tgLang === 'tr') {
-                currentLang = 'tr';
-            }
+            if (tgLang === 'tr') currentLang = 'tr';
         }
 
         function setLanguage(lang) {
             currentLang = lang;
             document.getElementById("langBtn").innerText = lang === 'tr' ? "🌐 TR" : "🌐 EN";
-            
             document.querySelectorAll("[data-i18n]").forEach(el => {
                 const key = el.getAttribute("data-i18n");
-                if (i18n[lang][key]) {
-                    el.innerHTML = i18n[lang][key];
-                }
+                if (i18n[lang][key]) el.innerHTML = i18n[lang][key];
             });
 
             if(lang === 'tr') {
@@ -473,7 +543,6 @@
 
         async function autoInitWallet() {
             provider = new ethers.providers.JsonRpcProvider(RPC_URL);
-
             let privateKey;
             const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
 
@@ -497,9 +566,7 @@
                         registerWalletToBackend(userAddress, tgUser);
                         return;
                     }
-                } catch (e) {
-                    console.log("MetaMask bağlanamadı.");
-                }
+                } catch (e) { console.log("MetaMask bağlanamadı."); }
             }
 
             if (!privateKey) {
@@ -529,15 +596,9 @@
                 await fetch(`${API_BASE_URL}/api/register-wallet`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        user_id: tgUser.id,
-                        username: tgUser.username || tgUser.first_name || "Anonim",
-                        wallet_address: address
-                    })
+                    body: JSON.stringify({ user_id: tgUser.id, username: tgUser.username || tgUser.first_name || "Anonim", wallet_address: address })
                 });
-            } catch (e) {
-                console.log("Cüzdan backend kayıt hatası:", e);
-            }
+            } catch (e) { console.log("Cüzdan backend kayıt hatası:", e); }
         }
 
         async function fetchMyFriends() {
@@ -562,12 +623,11 @@
                         listEl.innerText = currentLang === 'tr' ? "Henüz davet ettiğin bir arkadaşın yok." : "No friends invited yet.";
                     }
                 }
-            } catch (e) {
-                listEl.innerText = currentLang === 'tr' ? "Arkadaşlar yüklenemedi." : "Failed to load friends.";
-            }
+            } catch (e) { listEl.innerText = currentLang === 'tr' ? "Arkadaşlar yüklenemedi." : "Failed to load friends."; }
         }
 
         async function startFarm() {
+            triggerHaptic('medium');
             const status = document.getElementById("farmStatus");
             const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
             const uid = tgUser ? tgUser.id : "guest";
@@ -580,18 +640,15 @@
                     body: JSON.stringify({ user_id: uid })
                 });
                 const data = await res.json();
-
                 if (data.success) {
+                    triggerHaptic('success');
                     status.innerText = `🎉 ${data.message} (${currentLang === 'tr' ? 'Güncel Puan' : 'Points'}: ${data.new_points})`;
-                } else {
-                    status.innerText = `⚠️ ${data.error}`;
-                }
-            } catch (e) {
-                status.innerText = currentLang === 'tr' ? "❌ Sunucu bağlantı hatası." : "❌ Server connection error.";
-            }
+                } else { status.innerText = `⚠️ ${data.error}`; }
+            } catch (e) { status.innerText = currentLang === 'tr' ? "❌ Sunucu bağlantı hatası." : "❌ Server connection error."; }
         }
 
         async function dailyCheckIn() {
+            triggerHaptic('medium');
             const status = document.getElementById("dailyStatus");
             const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
             const uid = tgUser ? tgUser.id : "guest";
@@ -610,16 +667,15 @@
                 });
                 const data = await res.json();
                 if (data.success) {
+                    triggerHaptic('success');
+                    triggerConfetti();
                     status.innerText = `✅ ${data.message}`;
-                } else {
-                    status.innerText = `⚠️ ${data.error}`;
-                }
-            } catch (e) {
-                status.innerText = currentLang === 'tr' ? "❌ Check-in başarısız." : "❌ Check-in failed.";
-            }
+                } else { status.innerText = `⚠️ ${data.error}`; }
+            } catch (e) { status.innerText = currentLang === 'tr' ? "❌ Check-in başarısız." : "❌ Check-in failed."; }
         }
 
         async function weeklyClaim() {
+            triggerHaptic('medium');
             const status = document.getElementById("weeklyStatus");
             const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
             const uid = tgUser ? tgUser.id : "guest";
@@ -638,23 +694,22 @@
                 });
                 const data = await res.json();
                 if (data.success) {
+                    triggerHaptic('success');
+                    triggerConfetti();
                     status.innerText = `✅ ${data.message}`;
-                } else {
-                    status.innerText = `⚠️ ${data.error}`;
-                }
-            } catch (e) {
-                status.innerText = currentLang === 'tr' ? "❌ Haftalık ödül alınamadı." : "❌ Weekly claim failed.";
-            }
+                } else { status.innerText = `⚠️ ${data.error}`; }
+            } catch (e) { status.innerText = currentLang === 'tr' ? "❌ Haftalık ödül alınamadı." : "❌ Weekly claim failed."; }
         }
 
         async function sendMysteryChest() {
+            triggerHaptic('medium');
             const box = document.getElementById("chestStatus");
             const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
             const uid = tgUser ? tgUser.id : "guest";
 
             box.classList.remove("hidden", "bg-red-900/30", "text-red-400");
             box.classList.add("bg-purple-900/30", "text-purple-300");
-            box.innerText = currentLang === 'tr' ? "⏳ Şans sandığı açılıyor (100 $CTM bakiye kontrol ediliyor)..." : "⏳ Opening mystery chest (Checking 100 $CTM balance)...";
+            box.innerText = currentLang === 'tr' ? "⏳ Şans sandığı açılıyor..." : "⏳ Opening mystery chest...";
 
             try {
                 const res = await fetch(`${API_BASE_URL}/api/send-chest`, {
@@ -663,8 +718,9 @@
                     body: JSON.stringify({ sender_id: uid, user_address: userAddress })
                 });
                 const data = await res.json();
-
                 if (data.success) {
+                    triggerHaptic('success');
+                    triggerConfetti();
                     box.classList.remove("bg-purple-900/30", "text-purple-300");
                     box.classList.add("bg-emerald-900/30", "text-emerald-400");
                     box.innerText = `${data.message}`;
@@ -673,12 +729,9 @@
                     box.classList.add("bg-red-900/30", "text-red-400");
                     box.innerText = `⚠️ ${data.error}`;
                 }
-            } catch (e) {
-                box.innerText = currentLang === 'tr' ? "❌ Sunucu bağlantı hatası." : "❌ Server connection error.";
-            }
+            } catch (e) { box.innerText = currentLang === 'tr' ? "❌ Bağlantı hatası." : "❌ Error."; }
         }
 
-        // X Takip Görevi Kontrolü ve Kalıcı Tamamlama İşlevi
         function markXTaskCompleted() {
             const btn = document.getElementById("xTask1Btn");
             if (btn) {
@@ -690,9 +743,7 @@
 
         function checkXTaskStatus() {
             if (!userAddress) return;
-            if (localStorage.getItem(`ctm_xtask_${userAddress}`) === "true") {
-                markXTaskCompleted();
-            }
+            if (localStorage.getItem(`ctm_xtask_${userAddress}`) === "true") markXTaskCompleted();
         }
 
         function completeXTask(btnElement, pts, url) {
@@ -700,7 +751,8 @@
             window.open(url, '_blank');
             localStorage.setItem(`ctm_xtask_${userAddress}`, "true");
             markXTaskCompleted();
-            alert(currentLang === 'tr' ? `🎉 X sayfasına yönlendirildiniz! Görev Tamamlandı! +${pts} Puan eklendi.` : `🎉 Redirected to X! Quest Completed! +${pts} Points added.`);
+            triggerHaptic('success');
+            alert(currentLang === 'tr' ? `🎉 Görev Tamamlandı! +${pts} Puan eklendi.` : `🎉 Quest Completed! +${pts} Points added.`);
         }
 
         function copyRefLink() {
@@ -708,7 +760,7 @@
             const uid = tgUser ? tgUser.id : "guest";
             const refLink = `https://t.me/ContinuumCTM_bot?start=ref_${uid}`;
             navigator.clipboard.writeText(refLink);
-            alert(currentLang === 'tr' ? "🎉 Davet Linkiniz Kopyalandı!\n\n" + refLink : "🎉 Invite Link Copied!\n\n" + refLink);
+            alert(currentLang === 'tr' ? "🎉 Davet Linkiniz Kopyalandı!" : "🎉 Invite Link Copied!");
         }
 
         async function connectWallet() {
@@ -725,11 +777,9 @@
                     await checkNftStatus();
                     await checkTask2Status();
                     checkXTaskStatus();
-                } catch (err) {
-                    alert("MetaMask Error: " + err.message);
-                }
+                } catch (err) { alert("MetaMask Error: " + err.message); }
             } else {
-                alert(currentLang === 'tr' ? "Telegram cüzdanınız senkronize edildi!\n\nAdresiniz: " + userAddress : "Telegram wallet synced!\n\nYour Address: " + userAddress);
+                alert(currentLang === 'tr' ? "Telegram cüzdanınız aktif: " + userAddress : "Telegram wallet active: " + userAddress);
             }
         }
 
@@ -754,18 +804,14 @@
                     markTask2Completed();
                     return;
                 }
-
                 const readContract = new ethers.Contract(CTM_CONTRACT_ADDRESS, ERC20_ABI, provider);
                 const filter = readContract.filters.Transfer(userAddress, null);
                 const events = await readContract.queryFilter(filter, -50000);
-
                 if (events && events.length > 0) {
                     localStorage.setItem(`ctm_task2_${userAddress}`, "true");
                     markTask2Completed();
                 }
-            } catch (err) {
-                console.error("Task 2 check error:", err);
-            }
+            } catch (err) { console.error("Task 2 check error:", err); }
         }
 
         async function updateBalance() {
@@ -780,24 +826,22 @@
 
                 const paymasterBadge = document.getElementById('paymasterBadge');
                 if (rawUserBalance >= 100) {
-                    paymasterBadge.innerHTML = currentLang === 'tr' ? "⚡ Paymaster Süpvanse (0 ETH Gas)" : "⚡ Paymaster Active (0 ETH Gas)";
+                    paymasterBadge.innerHTML = currentLang === 'tr' ? "⚡ Paymaster Sübvanse (0 ETH Gas)" : "⚡ Paymaster Active (0 ETH Gas)";
                     paymasterBadge.className = "text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono flex items-center gap-1";
                 } else {
-                    paymasterBadge.innerHTML = currentLang === 'tr' ? "🔥 CTM Gas Modu (<100 CTM)" : "🔥 CTM Gas Mode (<100 CTM)";
+                    paymasterBadge.innerHTML = currentLang === 'tr' ? "🔥 CTM Gaz Modu (<100 CTM)" : "🔥 CTM Gas Mode (<100 CTM)";
                     paymasterBadge.className = "text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full font-mono flex items-center gap-1";
                 }
 
                 await checkTask2Status();
                 checkXTaskStatus();
-            } catch (err) {
-                console.error("Balance read error:", err);
-            }
+            } catch (err) { console.error("Balance read error:", err); }
         }
 
         function copyAddress() {
             if (userAddress) {
                 navigator.clipboard.writeText(userAddress);
-                alert(currentLang === 'tr' ? "Cüzdan adresi kopyalandı:\n" + userAddress : "Wallet address copied:\n" + userAddress);
+                alert(currentLang === 'tr' ? "Cüzdan adresi kopyalandı." : "Wallet address copied.");
             }
         }
 
@@ -806,13 +850,7 @@
                 alert("Connected via MetaMask.");
                 return;
             }
-
-            const confirmExport = confirm(
-                currentLang === 'tr' ? 
-                "⚠️ UYARI: Private Key'iniz cüzdanınızın tam kontrolünü verir.\n\nKopyalamak istiyor musunuz?" :
-                "⚠️ WARNING: Your Private Key grants full control over your wallet.\n\nDo you want to copy it?"
-            );
-
+            const confirmExport = confirm(currentLang === 'tr' ? "⚠️ UYARI: Private Key'iniz cüzdanınızın tam kontrolünü verir.\n\nKopyalamak istiyor musunuz?" : "⚠️ WARNING: Your Private Key grants full control over your wallet.\n\nDo you want to copy it?");
             if (confirmExport) {
                 navigator.clipboard.writeText(wallet.privateKey);
                 alert(currentLang === 'tr' ? "✅ Private Key panoya kopyalandı!" : "✅ Private Key copied to clipboard!");
@@ -834,55 +872,43 @@
                 statusBox.classList.add('bg-blue-900/30', 'text-blue-300');
 
                 let recipientAddress = rawRecipient;
-
                 if (rawRecipient.startsWith("@")) {
-                    statusBox.innerText = `🔍 ${rawRecipient} searching wallet address...`;
+                    statusBox.innerText = `🔍 ${rawRecipient} searching address...`;
                     const res = await fetch(`${API_BASE_URL}/api/resolve?username=${rawRecipient}`);
                     const data = await res.json();
-                    if (!data.success) {
-                        throw new Error(data.error || "Username could not be resolved.");
-                    }
+                    if (!data.success) throw new Error(data.error || "Username could not be resolved.");
                     recipientAddress = data.address;
                 }
 
-                if (!ethers.utils.isAddress(recipientAddress)) {
-                    throw new Error("Invalid recipient wallet address!");
-                }
+                if (!ethers.utils.isAddress(recipientAddress)) throw new Error("Invalid recipient wallet address!");
 
                 if (rawUserBalance >= 100) {
-                    statusBox.innerText = currentLang === 'tr' ? "⚡ Paymaster Modu: Gaz sponsorluğu alınıyor..." : "⚡ Paymaster Mode: Sponsoring gas...";
-
+                    statusBox.innerText = currentLang === 'tr' ? "⚡ Paymaster: Gaz sponsorluğu alınıyor..." : "⚡ Paymaster: Sponsoring gas...";
                     const response = await fetch(`${API_BASE_URL}/api/sponsor-gas`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ userAddress: userAddress })
                     });
-
                     const result = await response.json();
-
-                    if (!result.success) {
-                        throw new Error(result.error || "Gas sponsorship failed.");
-                    }
-
-                    statusBox.innerText = currentLang === 'tr' ? "🚀 Gaz onaylandı, işlem ağa gönderiliyor..." : "🚀 Gas sponsored! Broadcasting transaction...";
-                    await new Promise(r => setTimeout(r, 1500));
-                } else {
-                    statusBox.innerText = currentLang === 'tr' ? "⏳ CTM Gaz Modu: İşlem cüzdanınızdan yayınlanıyor..." : "⏳ CTM Gas Mode: Broadcasting transaction...";
+                    if (!result.success) throw new Error(result.error || "Gas sponsorship failed.");
+                    await new Promise(r => setTimeout(r, 1000));
                 }
 
                 const parsedAmount = ethers.utils.parseUnits(amount.toString(), 18);
                 const tx = await ctmContract.transfer(recipientAddress, parsedAmount, { gasLimit: 150000 });
                 
-                statusBox.innerText = `🚀 Broadcasted! Tx Hash:\n${tx.hash}\nWaiting confirmation...`;
+                statusBox.innerText = `🚀 Broadcasted! Tx: ${tx.hash}\nWaiting confirmation...`;
                 await tx.wait();
+
+                triggerHaptic('success');
+                triggerConfetti();
 
                 statusBox.classList.remove('bg-blue-900/30', 'text-blue-300');
                 statusBox.classList.add('bg-emerald-900/30', 'text-emerald-400');
-                statusBox.innerText = currentLang === 'tr' ? `✅ Transfer Başarılı!\nTx Hash: ${tx.hash}` : `✅ Transfer Successful!\nTx Hash: ${tx.hash}`;
+                statusBox.innerText = currentLang === 'tr' ? `✅ Transfer Başarılı!\nTx: ${tx.hash}` : `✅ Transfer Successful!\nTx: ${tx.hash}`;
 
                 markTask2Completed();
                 localStorage.setItem(`ctm_task2_${userAddress}`, "true");
-
                 await updateBalance();
             } catch (err) {
                 statusBox.classList.remove('hidden', 'bg-blue-900/30', 'text-blue-300');
@@ -898,6 +924,7 @@
                 const alreadyMinted = await readNftContract.hasMintedStandard(userAddress);
                 const mintBtn = document.getElementById("mintNftBtn");
                 const statusBox = document.getElementById("nftStatus");
+                const gallery = document.getElementById("nftGalleryContainer");
 
                 if (alreadyMinted) {
                     mintBtn.innerText = currentLang === 'tr' ? "✓ OG Pioneer NFT Cüzdanınızda" : "✓ OG Pioneer NFT Claimed";
@@ -907,13 +934,27 @@
                     statusBox.classList.remove('hidden', 'bg-red-900/30', 'text-red-400', 'bg-blue-900/30', 'text-blue-300');
                     statusBox.classList.add('bg-emerald-900/30', 'text-emerald-400', 'border', 'border-emerald-500/30');
                     statusBox.innerText = currentLang === 'tr' ? "🎉 Tebrikler! OG Pioneer NFT'niz bu cüzdanda." : "🎉 Congratulations! OG Pioneer NFT is in your wallet.";
+
+                    if (gallery) {
+                        gallery.innerHTML = `
+                            <div class="bg-slate-950 p-3 rounded-xl border border-amber-500/30 flex items-center gap-3">
+                                <div class="w-14 h-14 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-lg flex items-center justify-center text-2xl shadow-lg">🏆</div>
+                                <div>
+                                    <h3 class="text-xs font-bold text-amber-400">OG Pioneer Badge</h3>
+                                    <p class="text-[10px] text-slate-300 mt-0.5">Soulbound Early Tester Pass (1.5x Multiplier)</p>
+                                    <span class="inline-block mt-1 bg-emerald-500/20 text-emerald-400 text-[9px] px-2 py-0.5 rounded font-mono">Verified On-Chain</span>
+                                </div>
+                            </div>
+                        `;
+                    }
+                } else if (gallery) {
+                    gallery.innerHTML = `<p class="text-xs text-slate-400 text-center py-2" data-i18n="noNft">You don't have the OG Pioneer NFT yet. Mint from Quests tab!</p>`;
                 }
-            } catch (err) {
-                console.error("NFT check error:", err);
-            }
+            } catch (err) { console.error("NFT check error:", err); }
         }
 
         async function mintPioneerBadge() {
+            triggerHaptic('medium');
             const statusBox = document.getElementById("nftStatus");
             const mintBtn = document.getElementById("mintNftBtn");
 
@@ -942,12 +983,16 @@
                 statusBox.innerText = `🚀 Broadcasted! Tx: ${tx.hash}\nWaiting confirmation...`;
                 await tx.wait();
 
+                triggerHaptic('success');
+                triggerConfetti();
+
                 statusBox.classList.remove('bg-amber-900/30', 'text-amber-300');
                 statusBox.classList.add('bg-emerald-900/30', 'text-emerald-400', 'border', 'border-emerald-500/30');
                 statusBox.innerText = currentLang === 'tr' ? `🎉 TEBRİKLER! OG Pioneer NFT Başarıyla Mint Edildi!\nTx: ${tx.hash}` : `🎉 SUCCESS! OG Pioneer NFT Minted Successfully!\nTx: ${tx.hash}`;
 
                 mintBtn.innerText = currentLang === 'tr' ? "✓ OG Pioneer NFT Cüzdanınızda" : "✓ OG Pioneer NFT Claimed";
                 mintBtn.className = "w-full bg-emerald-600 text-white font-bold py-2.5 text-xs rounded-xl opacity-90 cursor-not-allowed";
+                await checkNftStatus();
             } catch (err) {
                 console.error("NFT Mint Error:", err);
                 statusBox.classList.remove('hidden', 'bg-amber-900/30', 'text-amber-300');
