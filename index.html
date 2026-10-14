@@ -322,22 +322,72 @@
             </div>
         </div>
 
+        <!-- ================= TAB 4: ISO 20022 RWA GATEWAY ================= -->
+        <div id="tab-rwa" class="tab-content space-y-5">
+            <div class="bg-slate-900/90 rounded-2xl p-4 glow-box space-y-4">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-lg">🏦</span>
+                        <h2 class="text-sm font-bold text-cyan-400" data-i18n="rwaTitle">ISO 20022 RWA Gateway</h2>
+                    </div>
+                    <span class="text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 px-2 py-0.5 rounded-full font-mono" data-i18n="rwaSub">
+                        pacs.008 Institutional Bridge
+                    </span>
+                </div>
+
+                <p class="text-xs text-slate-300 leading-relaxed" data-i18n="rwaDesc">
+                    Institutional bridging layer converting banking <strong class="text-cyan-400">pacs.008</strong> payment structures into on-chain tokenized real-world assets (RWA). Test the sandbox pipeline below.
+                </p>
+
+                <!-- RWA SANDBOX CARD -->
+                <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800 space-y-3 text-xs">
+                    <div class="font-bold text-cyan-400 text-[11px]" data-i18n="simTitle">📋 Select ISO 20022 Payment Template</div>
+                    <select id="rwaTemplateSelect" onchange="updateRwaPayload()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-200 font-mono">
+                        <option value="tbill">US Treasury Bill (T-Bill) Settlement - $10,000</option>
+                        <option value="realestate">Commercial Real Estate Trust - €50,000</option>
+                        <option value="greenbond">Sovereign Green Bond - $25,000</option>
+                    </select>
+
+                    <div class="p-2 bg-slate-900 rounded-lg border border-slate-800 text-[10px] font-mono text-slate-400 overflow-x-auto">
+                        <pre id="pacsPayloadPreview">&lt;Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.10"&gt;
+  &lt;FIToFICstmrCdtTrf&gt;
+    &lt;GrpHdr&gt;&lt;MsgId&gt;CTM-RWA-2026-TBILL&lt;/MsgId&gt;&lt;/GrpHdr&gt;
+    &lt;CdtTrfTxInf&gt;
+      &lt;IntrBkSttlmAmt Ccy="USD"&gt;10000.00&lt;/IntrBkSttlmAmt&gt;
+      &lt;RmtInf&gt;&lt;Ustrd&gt;Tokenized T-Bill Asset ID: US912796XQ80&lt;/Ustrd&gt;&lt;/RmtInf&gt;
+    &lt;/CdtTrfTxInf&gt;
+  &lt;/FIToFICstmrCdtTrf&gt;
+&lt;/Document&gt;</pre>
+                    </div>
+
+                    <button onclick="simulateRwaBridge()" id="rwaBtn" class="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold py-2 text-xs rounded-xl transition">
+                        ⚡ Bridge & Mint RWA Token (pacs.008)
+                    </button>
+                    <div id="rwaStatus" class="hidden p-2 rounded-lg text-[10px] font-mono text-center"></div>
+                </div>
+            </div>
+        </div>
+
     </main>
 
-    <!-- FIXED BOTTOM NAVIGATION BAR -->
-    <nav class="fixed bottom-0 left-0 right-0 bg-slate-950/90 backdrop-blur-lg border-t border-slate-800 z-50 py-2 px-6">
+    <!-- FIXED BOTTOM NAVIGATION BAR (4 TABS) -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-slate-950/90 backdrop-blur-lg border-t border-slate-800 z-50 py-2 px-4">
         <div class="max-w-md mx-auto flex justify-around items-center">
             <button onclick="switchTab('home')" id="nav-home" class="flex flex-col items-center text-blue-400 transition">
-                <span class="text-lg">🏠</span>
-                <span class="text-[10px] font-medium mt-0.5">Home</span>
+                <span class="text-base">🏠</span>
+                <span class="text-[9px] font-medium mt-0.5">Home</span>
             </button>
             <button onclick="switchTab('quests')" id="nav-quests" class="flex flex-col items-center text-slate-400 hover:text-slate-200 transition">
-                <span class="text-lg">⚔️</span>
-                <span class="text-[10px] font-medium mt-0.5">Quests</span>
+                <span class="text-base">⚔️</span>
+                <span class="text-[9px] font-medium mt-0.5">Quests</span>
             </button>
             <button onclick="switchTab('wallet')" id="nav-wallet" class="flex flex-col items-center text-slate-400 hover:text-slate-200 transition">
-                <span class="text-lg">💎</span>
-                <span class="text-[10px] font-medium mt-0.5">Wallet</span>
+                <span class="text-base">💎</span>
+                <span class="text-[9px] font-medium mt-0.5">Wallet</span>
+            </button>
+            <button onclick="switchTab('rwa')" id="nav-rwa" class="flex flex-col items-center text-slate-400 hover:text-slate-200 transition">
+                <span class="text-base">🏦</span>
+                <span class="text-[9px] font-medium mt-0.5">RWA Gateway</span>
             </button>
         </div>
     </nav>
@@ -433,6 +483,10 @@
                 recipientLabel: "RECIPIENT (Address 0x... or @username)",
                 amountLabel: "AMOUNT ($CTM)",
                 transferSubmitBtn: "Confirm Transfer",
+                rwaTitle: "ISO 20022 RWA Gateway",
+                rwaSub: "pacs.008 Institutional Bridge",
+                rwaDesc: "Institutional bridging layer converting banking pacs.008 payment structures into on-chain tokenized real-world assets (RWA). Test the sandbox pipeline below.",
+                simTitle: "📋 Select ISO 20022 Payment Template",
                 footerText: "Continuum Network ($CTM) — Built on Base Sepolia L2"
             },
             tr: {
@@ -472,6 +526,10 @@
                 recipientLabel: "ALICI (Cüzdan Adresi 0x... veya @kullaniciadi)",
                 amountLabel: "MİKTAR ($CTM)",
                 transferSubmitBtn: "Transferi Onayla",
+                rwaTitle: "ISO 20022 RWA Gateway",
+                rwaSub: "pacs.008 Kurumsal Köprü",
+                rwaDesc: "Banka pacs.008 ödeme yapılarını zincir üstü tokenize gerçek dünya varlıklarına (RWA) dönüştüren kurumsal köprü katmanı.",
+                simTitle: "📋 ISO 20022 Ödeme Şablonu Seçin",
                 footerText: "Continuum Network ($CTM) — Built on Base Sepolia L2"
             }
         };
@@ -498,6 +556,7 @@
                 document.getElementById("transferBtn").innerText = "Transferi Onayla";
                 document.getElementById("dailyBtn").innerText = "Check-In Yap";
                 document.getElementById("weeklyBtn").innerText = "Haftalık Ödülü Al";
+                document.getElementById("rwaBtn").innerText = "⚡ RWA Token Köprüle & Mint Et (pacs.008)";
             } else {
                 document.getElementById("farmBtn").innerText = "⚡ Start Farming (+100 PTS)";
                 document.getElementById("copyRefBtn").innerText = "🔗 Copy My Invite Link";
@@ -506,6 +565,7 @@
                 document.getElementById("transferBtn").innerText = "Confirm Transfer";
                 document.getElementById("dailyBtn").innerText = "Check-In Now";
                 document.getElementById("weeklyBtn").innerText = "Claim Weekly Reward";
+                document.getElementById("rwaBtn").innerText = "⚡ Bridge & Mint RWA Token (pacs.008)";
             }
         }
 
@@ -754,6 +814,64 @@
                     box.innerText = `⚠️ ${data.error}`;
                 }
             } catch (e) { box.innerText = currentLang === 'tr' ? "❌ Bağlantı hatası." : "❌ Error."; }
+        }
+
+        // RWA PAYLOAD SIMULATOR DINAMIK GORUNTULEME
+        function updateRwaPayload() {
+            const template = document.getElementById("rwaTemplateSelect").value;
+            const preview = document.getElementById("pacsPayloadPreview");
+            if (template === 'tbill') {
+                preview.innerText = `<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.10">
+  <FIToFICstmrCdtTrf>
+    <GrpHdr><MsgId>CTM-RWA-2026-TBILL</MsgId></GrpHdr>
+    <CdtTrfTxInf>
+      <IntrBkSttlmAmt Ccy="USD">10000.00</IntrBkSttlmAmt>
+      <RmtInf><Ustrd>Tokenized T-Bill Asset ID: US912796XQ80</Ustrd></RmtInf>
+    </CdtTrfTxInf>
+  </FIToFICstmrCdtTrf>
+</Document>`;
+            } else if (template === 'realestate') {
+                preview.innerText = `<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.10">
+  <FIToFICstmrCdtTrf>
+    <GrpHdr><MsgId>CTM-RWA-2026-REPROP</MsgId></GrpHdr>
+    <CdtTrfTxInf>
+      <IntrBkSttlmAmt Ccy="EUR">50000.00</IntrBkSttlmAmt>
+      <RmtInf><Ustrd>Commercial Real Estate Trust Unit: EU-PROP-8821</Ustrd></RmtInf>
+    </CdtTrfTxInf>
+  </FIToFICstmrCdtTrf>
+</Document>`;
+            } else if (template === 'greenbond') {
+                preview.innerText = `<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.10">
+  <FIToFICstmrCdtTrf>
+    <GrpHdr><MsgId>CTM-RWA-2026-GBOND</MsgId></GrpHdr>
+    <CdtTrfTxInf>
+      <IntrBkSttlmAmt Ccy="USD">25000.00</IntrBkSttlmAmt>
+      <RmtInf><Ustrd>Sovereign Green Bond Token: GBOND-2026-X9</Ustrd></RmtInf>
+    </CdtTrfTxInf>
+  </FIToFICstmrCdtTrf>
+</Document>`;
+            }
+        }
+
+        async function simulateRwaBridge() {
+            triggerHaptic('medium');
+            const statusBox = document.getElementById("rwaStatus");
+            statusBox.classList.remove("hidden", "bg-red-900/30", "text-red-400", "bg-emerald-900/30", "text-emerald-400");
+            statusBox.classList.add("bg-cyan-900/30", "text-cyan-300");
+            statusBox.innerText = currentLang === 'tr' ? "⏳ pacs.008 mesajı parse ediliyor ve L2 sözleşmesine köprüleniyor..." : "⏳ Parsing pacs.008 message & bridging to L2 contract...";
+
+            try {
+                await new Promise(r => setTimeout(r, 2000));
+                triggerHaptic('success');
+                triggerConfetti();
+
+                statusBox.classList.remove("bg-cyan-900/30", "text-cyan-300");
+                statusBox.classList.add("bg-emerald-900/30", "text-emerald-400");
+                statusBox.innerText = currentLang === 'tr' ? "✅ ISO 20022 RWA Köprüsü Başarılı! Kurumsal Varlık Zincir Üstünde Mint Edildi." : "✅ ISO 20022 RWA Bridge Successful! Institutional Asset Minted On-Chain.";
+            } catch (e) {
+                statusBox.classList.add("bg-red-900/30", "text-red-400");
+                statusBox.innerText = "❌ RWA Bridge Error.";
+            }
         }
 
         function markXTaskCompleted() {
